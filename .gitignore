@@ -1,1 +1,5 @@
 *.db
+old*
+.env
+__pycache__/*
+*.pyc 
