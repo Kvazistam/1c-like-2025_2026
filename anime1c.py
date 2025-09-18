@@ -7,10 +7,12 @@ anime1c.py – GUI-оболочка Anime1C (ORM-вариант)
 
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
+from tkinter import filedialog
 from db_scripts import doc_update_head
 from tkcalendar import DateEntry
 from datetime import date, datetime
 import os
+from app_style import apply_1c_style
 
 from db_scripts import (
     # модели
@@ -32,6 +34,7 @@ class App(tk.Tk):
         self.geometry("1100x650")
         self.make_menu()
         self.make_main_paned()
+        apply_1c_style(self)
 
     # ---------- меню ----------
     def make_menu(self):
@@ -88,13 +91,15 @@ class App(tk.Tk):
     def show_items(self):
         self.clear_content()
         ttk.Label(self.content_frame, text="Справочник товаров").pack(pady=4)
-        cols = ("id", "code", "name", "category", "sell_price")
+        cols = ("id", "code", "name", "category", "sell_price", )
         self.tv = ttk.Treeview(self.content_frame, columns=cols, show='headings')
         for c in cols:
             self.tv.heading(c, text=c)
             self.tv.column(c, width=120)
         self.tv.pack(fill=tk.BOTH, expand=1)
-
+        
+        # self.tv.bind('<Double-1>', lambda e: self.show_item_card())
+        
         btn = ttk.Frame(self.content_frame)
         btn.pack(fill=tk.X)
         ttk.Button(btn, text="Добавить", command=self.add_item).pack(side=tk.LEFT)
@@ -106,6 +111,7 @@ class App(tk.Tk):
 
     def add_item(self):
         d = ItemDialog(self)
+        self.wait_window(d)
         if d.res:
             try:
                 item_add(**d.res)
@@ -223,7 +229,7 @@ class ItemDialog(tk.Toplevel):
         super().__init__(master)
         self.res = None
         self.title("Товар")
-        self.geometry("400x300")
+        self.geometry("400x350")
 
         labels = ("Код", "Название", "Категория", "Закупка", "Продажа")
         self.entries = {}
@@ -231,12 +237,24 @@ class ItemDialog(tk.Toplevel):
             ttk.Label(self, text=lbl).grid(row=i, column=0, sticky=tk.W, padx=6, pady=4)
             e = ttk.Entry(self)
             e.grid(row=i, column=1, sticky=tk.EW, padx=6)
-            self.entries[lbl.lower()] = e
-        self.entries['buy_price'].insert(0, "0")
-        self.entries['sell_price'].insert(0, "0")
+            key = lbl.lower().replace(' ', '_')
+            self.entries[key] = e
 
-        ttk.Button(self, text="Сохранить", command=self.on_save).grid(row=len(labels), column=1, pady=10)
+        # картинка
+        ttk.Label(self, text="Картинка").grid(row=len(labels), column=0, sticky=tk.W, padx=6, pady=4)
+        ttk.Button(self, text="Выбрать...", command=self.pick_image).grid(row=len(labels), column=1, sticky=tk.W, padx=6)
+
+        ttk.Button(self, text="Сохранить", command=self.on_save).grid(row=len(labels)+1, column=1, pady=10)
         self.columnconfigure(1, weight=1)
+
+        self.image_bytes = None
+
+    def pick_image(self):
+        from tkinter import filedialog
+        path = filedialog.askopenfilename(filetypes=[("Images", "*.jpg *.png")])
+        if path:
+            with open(path, 'rb') as f:
+                self.image_bytes = f.read()
 
     def on_save(self):
         self.res = {
@@ -245,6 +263,7 @@ class ItemDialog(tk.Toplevel):
             'category': self.entries['категория'].get() or None,
             'buy_price': float(self.entries['закупка'].get() or 0),
             'sell_price': float(self.entries['продажа'].get() or 0),
+            'image': self.image_bytes
         }
         if not self.res['code'] or not self.res['name']:
             messagebox.showerror("Ошибка", "Код и название обязательны")
@@ -463,6 +482,24 @@ class DocRowDialog(tk.Toplevel):
         }
         self.destroy()
 
+from PIL import Image, ImageTk
+import io
+
+def pick_image(self):
+    path = filedialog.askopenfilename(filetypes=[("Images", "*.jpg *.png")])
+    if path:
+        with open(path, 'rb') as f:
+            self.image_bytes = f.read()
+
+def show_image(self, image_bytes):
+    window = tk.Toplevel(self)
+    window.title("Изображение")
+    im = Image.open(io.BytesIO(image_bytes))
+    im.thumbnail((400, 400))
+    ph = ImageTk.PhotoImage(im)
+    lbl = ttk.Label(window, image=ph)
+    lbl.image = ph
+    lbl.pack()
 
 # ---------- запуск ----------
 if __name__ == '__main__':

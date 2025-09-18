@@ -73,7 +73,7 @@ from datetime import date, datetime
 from typing import List, Optional, Dict, Any
 
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Float, Date, Boolean, ForeignKey,
+    LargeBinary, create_engine, Column, Integer, String, Float, Date, Boolean, ForeignKey,
     select, delete, func, event
 )
 from sqlalchemy.engine import Engine
@@ -111,6 +111,7 @@ class Item(Base):
     category: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     buy_price: Mapped[float] = mapped_column(Float, default=0)
     sell_price: Mapped[float] = mapped_column(Float, default=0)
+    image: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
 
     lines: Mapped[List["DocsTable"]] = relationship(back_populates="item")
 
@@ -186,6 +187,13 @@ class User(Base):
     username: Mapped[str] = mapped_column(String, unique=True)
     passhash: Mapped[str] = mapped_column(String)
 
+class SalePrice(Base):
+    __tablename__ = 'sale_prices'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    item_id: Mapped[int] = mapped_column(ForeignKey('items.id'))
+    start_date: Mapped[date] = mapped_column(Date)
+    price: Mapped[float] = mapped_column(Float)
+    item: Mapped["Item"] = relationship()
 # ---- создание таблиц ----
 def create_tables():
     Base.metadata.create_all(engine)
@@ -204,12 +212,13 @@ def item_list() -> List[Dict[str, Any]]:
 
 
 def item_add(code: str, name: str, category: Optional[str],
-             buy_price: float, sell_price: float) -> int:
+             buy_price: float, sell_price: float, image: Optional[bytes] = None) -> int:
     with get_session() as s:
         it = Item(code=code, name=name, category=category,
-                  buy_price=buy_price, sell_price=sell_price)
+                  buy_price=buy_price, sell_price=sell_price, image=image)
         s.add(it)
         s.commit()
+        print(f"продукт {name} добавлен")
         return it.id
 
 
@@ -393,3 +402,24 @@ def user_check(username: str, plain_password: str) -> bool:
 # --- Миграция / создание всего ---
 def migrate():
     create_tables()
+    
+
+def sale_price_get(item_id: int, on_date: date) -> float:
+    """Цена на дату (последняя по дате)."""
+    with get_session() as s:
+        row = s.scalar(
+            select(SalePrice.price)
+            .where(SalePrice.item_id == item_id,
+                   SalePrice.start_date <= on_date)
+            .order_by(SalePrice.start_date.desc())
+            .limit(1)
+        )
+        return row or 0.0
+
+def sale_price_set(item_id: int, new_price: float, start: date = None):
+    with get_session() as s:
+        s.add(SalePrice(item_id=item_id,
+                        start_date=start or date.today(),
+                        price=new_price))
+        s.commit()
+        
