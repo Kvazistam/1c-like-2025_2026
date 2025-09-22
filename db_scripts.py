@@ -1,64 +1,3 @@
-# import os
-# import sqlite3
-# from dotenv import load_dotenv
-# from typing import List, Dict, Any
-# load_dotenv()
-
-# DB_FILE = os.getenv("DB_FILE")
-
-# # ---------- Утилиты БД ----------
-# def dict_factory(c, r):
-#     return {col[0]: r[idx] for idx, col in enumerate(c.description)}
-
-# def get_conn() -> sqlite3.Connection:
-#     conn = sqlite3.connect(DB_FILE)
-#     conn.row_factory = dict_factory
-#     return conn
-
-
-# # ---------- CRUD-обёртки ----------
-# def fetch_all(sql, params=()) -> List[Dict[str, Any]]:
-#     with get_conn() as c:
-#         return c.execute(sql, params).fetchall()
-
-# def fetch_one(sql, params=()):
-#     with get_conn() as c:
-#         return c.execute(sql, params).fetchone()
-
-# def execute(sql, params=()):
-#     with get_conn() as c:
-#         c.execute(sql, params)
-#         return c.lastrowid
-
-
-# # ---------- Проводки ----------
-# def post_doc(doc_id: int):
-#     with get_conn() as c:
-#         doc = c.execute("SELECT * FROM docs WHERE id=?", (doc_id,)).fetchone()
-#         if not doc:
-#             raise ValueError("Документ не найден")
-#         if doc['posted']:
-#             raise ValueError("Документ уже проведён")
-#         rows = c.execute("SELECT * FROM docs_table WHERE doc_id=?", (doc_id,)).fetchall()
-#         sign = 1 if doc['doc_type'] == 'приход' else -1
-#         for r in rows:
-#             c.execute(
-#                 "INSERT INTO stock(item_id, warehouse_id, qty, doc_id, date) VALUES (?,?,?,?,?)",
-#                 (r['item_id'], doc['warehouse_id'], sign * r['qty'], doc_id, doc['date'])
-#             )
-#         c.execute("UPDATE docs SET posted=1 WHERE id=?", (doc_id,))
-
-# def unpost_doc(doc_id: int):
-#     with get_conn() as c:
-#         c.execute("DELETE FROM stock WHERE doc_id=?", (doc_id,))
-#         c.execute("UPDATE docs SET posted=0 WHERE id=?", (doc_id,))
-
-# def get_stock(item_id: int, warehouse_id: int) -> float:
-#     row = fetch_one(
-#         "SELECT SUM(qty) as s FROM stock WHERE item_id=? AND warehouse_id=?",
-#         (item_id, warehouse_id)
-#     )
-#     return row['s'] or 0.0
 
 
 """
@@ -69,18 +8,20 @@ SQLAlchemy 2.0 (синхронный режим)
 from __future__ import annotations
 import hashlib
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional, Dict, Any
 
 from sqlalchemy import (
-    LargeBinary, create_engine, Column, Integer, String, Float, Date, Boolean, ForeignKey,
-    select, delete, func, event
+    LargeBinary, create_engine, Column, Integer, String, Float, Date, Boolean, ForeignKey, or_,
+    select, delete, func, event, update
 )
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm import (
     declarative_base, Mapped, mapped_column, relationship, Session
 )
+
+from enumerates import DOC_TYPES
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "anime1c.db")
 DB_URL = f"sqlite:///{DB_PATH}"
@@ -106,15 +47,25 @@ class Item(Base):
     __tablename__ = "items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    code: Mapped[str] = mapped_column(String, unique=True)
+    # code: Mapped[str] = mapped_column(String, unique=True)
     name: Mapped[str] = mapped_column(String)
     category: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     buy_price: Mapped[float] = mapped_column(Float, default=0)
-    sell_price: Mapped[float] = mapped_column(Float, default=0)
     image: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
 
     lines: Mapped[List["DocsTable"]] = relationship(back_populates="item")
 
+class ItemPrice(Base):
+    """Регистр цен по времени."""
+    __tablename__ = 'item_prices'
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    item_id: Mapped[int] = mapped_column(ForeignKey('items.id'))
+    price: Mapped[float] = mapped_column(Float)
+    date_from: Mapped[date] = mapped_column(Date)   # начало действия
+    date_to: Mapped[Optional[date]] = mapped_column(Date, nullable=True)  # NULL = «до сих пор»
+
+    item: Mapped['Item'] = relationship()
 
 class Contragent(Base):
     __tablename__ = "contragents"
@@ -186,6 +137,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String, unique=True)
     passhash: Mapped[str] = mapped_column(String)
+    role: Mapped[str] = mapped_column(String)   
 
 class SalePrice(Base):
     __tablename__ = 'sale_prices'
@@ -211,14 +163,43 @@ def item_list() -> List[Dict[str, Any]]:
         return [r.__dict__ for r in rows]
 
 
-def item_add(code: str, name: str, category: Optional[str],
-             buy_price: float, sell_price: float, image: Optional[bytes] = None) -> int:
+# 3.1  получить актуальную цену на дату
+def price_get(item_id: int, on_date: date = None) -> float:
+    on_date = on_date or date.today()
     with get_session() as s:
-        it = Item(code=code, name=name, category=category,
-                  buy_price=buy_price, sell_price=sell_price, image=image)
+        row = s.scalar(
+            select(ItemPrice.price)
+            .where(ItemPrice.item_id == item_id,
+                   ItemPrice.date_from <= on_date,
+                   or_(ItemPrice.date_to.is_(None),
+                       ItemPrice.date_to >= on_date))
+            .order_by(ItemPrice.date_from.desc())
+            .limit(1)
+        )
+        return row or 0.0
+
+# 3.2  установить новую цену (закрываем предыдущую)
+def price_set(item_id: int, new_price: float, from_date: date = None):
+    from_date = from_date or date.today()
+    with get_session() as s:
+        # закрываем старую
+        s.execute(
+            update(ItemPrice)
+            .where(ItemPrice.item_id == item_id,
+                   ItemPrice.date_to.is_(None))
+            .values(date_to=from_date - timedelta(days=1))
+        )
+        # добавляем новую
+        s.add(ItemPrice(item_id=item_id, price=new_price, date_from=from_date))
+        s.commit()
+
+def item_add(name: str, category: Optional[str],
+             buy_price: float = None, image: Optional[bytes] = None) -> int:
+    with get_session() as s:
+        it = Item(name=name, category=category,
+                  buy_price=buy_price, image=image)  
         s.add(it)
         s.commit()
-        print(f"продукт {name} добавлен")
         return it.id
 
 
@@ -331,7 +312,18 @@ def doc_save_table(doc_id: int, rows: List[Dict[str, Any]]) -> None:
             s.add(line)
         print('doc_id:', doc_id, 'rows:', rows)
         s.commit()
-
+        
+# --- Подсчет колитчества товара на складе --- 
+def stock_on_date(item_id: int, warehouse_id: int, on_date: date) -> float:
+    """Остаток товара на складе на конкретную дату (включая все проведённые движения)."""
+    with get_session() as s:
+        total = s.scalar(
+            select(func.sum(Stock.qty))
+            .where(Stock.item_id == item_id,
+                   Stock.warehouse_id == warehouse_id,
+                   Stock.date <= on_date)
+        )
+        return total or 0.0
 
 # --- Проводки / остатки ---
 def doc_post(doc_id: int) -> None:
@@ -341,11 +333,32 @@ def doc_post(doc_id: int) -> None:
             raise ValueError("Документ не найден")
         if d.posted:
             raise ValueError("Документ уже проведён")
-        sign = 1 if d.doc_type == "приход" else -1
+
+        if d.doc_type == DOC_TYPES[1]:
+            for line in d.lines:
+                avail = stock_on_date(line.item_id, d.warehouse_id, d.date)
+                if avail < line.qty:
+                    raise ValueError(
+                        f"Недостаточно товара '{line.item.name}' "
+                        f"на складе '{d.warehouse.name}' "
+                        f"(доступно {avail:.2f}, требуется {line.qty:.2f})"
+                    )
+        
+        sign = 1 if d.doc_type == DOC_TYPES[0] else -1
+
         for line in d.lines:
-            st = Stock(item_id=line.item_id, warehouse_id=d.warehouse_id,
-                       qty=sign * line.qty, doc_id=doc_id, date=d.date)
+            # --------------- ключевое изменение ---------------
+            if d.doc_type == DOC_TYPES[1]:          # ПРОДАЖА
+                line.price = price_get(line.item_id, d.date)
+            # --------------------------------------------------
+
+            st = Stock(item_id=line.item_id,
+                       warehouse_id=d.warehouse_id,
+                       qty=sign * line.qty,
+                       doc_id=doc_id,
+                       date=d.date)
             s.add(st)
+
         d.posted = True
         s.commit()
 
@@ -366,37 +379,67 @@ def stock_balance(item_id: int, warehouse_id: int) -> float:
             .where(Stock.item_id == item_id, Stock.warehouse_id == warehouse_id)
         )
         return total or 0.0
+    
 
-
-def stock_report() -> List[Dict[str, Any]]:
-    """Остатки по складам."""
+def stock_movements(warehouse_id: Optional[int] = None,
+                    item_id: Optional[int] = None,
+                    limit: int = 500) -> List[Dict[str, Any]]:
     with get_session() as s:
         stmt = (
-            select(Item.name.label("item"),
-                   Warehouse.name.label("warehouse"),
-                   func.sum(Stock.qty).label("qty"))
-            .join(Item).join(Warehouse)
-            .group_by(Item.id, Warehouse.id)
-            .having(func.sum(Stock.qty) != 0)
-            .order_by(Warehouse.name, Item.name)
+            select(Stock.id, Stock.date, Stock.qty,
+                   Warehouse.name.label('warehouse'),
+                   Item.name.label('item'),
+                   Doc.doc_type,
+                   Contragent.name.label('contragent'))
+            .select_from(Stock)
+            .join(Warehouse, Stock.warehouse_id == Warehouse.id)          
+            .join(Item, Stock.item_id == Item.id)                        
+            .join(Doc, Stock.doc_id == Doc.id)                           
+            .outerjoin(Contragent, Doc.contragent_id == Contragent.id)   
+            .where(Doc.posted == True)
+            .order_by(Stock.date.desc(), Stock.id.desc())
         )
-        rows = s.execute(stmt).mappings().all()
+
+        if warehouse_id:
+            stmt = stmt.where(Stock.warehouse_id == warehouse_id)
+        if item_id:
+            stmt = stmt.where(Stock.item_id == item_id)
+
+        rows = s.execute(stmt.limit(limit)).mappings().all()
         return [dict(r) for r in rows]
 
 
+# def stock_report() -> List[Dict[str, Any]]:
+#     """Остатки по складам."""
+#     with get_session() as s:
+#         stmt = (
+#             select(Item.name.label("item"),
+#                    Warehouse.name.label("warehouse"),
+#                    func.sum(Stock.qty).label("qty"))
+#             .join(Item).join(Warehouse)
+#             .group_by(Item.id, Warehouse.id)
+#             .having(func.sum(Stock.qty) != 0)
+#             .order_by(Warehouse.name, Item.name)
+#         )
+#         rows = s.execute(stmt).mappings().all()
+#         return [dict(r) for r in rows]
+
+
 # --- Пользователи (для будущего входа) ---
-def user_add(username: str, plain_password: str) -> None:
+def user_add(username: str, plain_password: str, role: str) -> None:
     ph = hashlib.sha256(plain_password.encode()).hexdigest()
     with get_session() as s:
-        s.add(User(username=username, passhash=ph))
+        s.add(User(username=username, passhash=ph, role=role))
         s.commit()
 
 
-def user_check(username: str, plain_password: str) -> bool:
+def user_check(username: str, plain_password: str) -> tuple[bool, str]:
     ph = hashlib.sha256(plain_password.encode()).hexdigest()
     with get_session() as s:
         u = s.scalar(select(User).where(User.username == username))
-        return u is not None and u.passhash == ph
+        if u and u.passhash == ph:
+            return True, u.role
+        return False, ''
 
 
 # --- Миграция / создание всего ---
