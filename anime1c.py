@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk
 from app_style import apply_1c_style
 from widgets import ItemsWidget, ContragentsWidget, WarehousesWidget, DocsWidget, StockWidget
+from widgets.sale_prices import SalePricesWidget
 
 class App:
     def __init__(self, master: tk.Tk, role: str):
@@ -51,6 +52,7 @@ class App:
             self._add_tool_btn('Поставщики', 'contragents')
             self._add_tool_btn('Приход',     'приход')
         else:  # sell
+            self._add_tool_btn('Цены', 'prices')
             self._add_tool_btn('Покупатели', 'contragents')
             self._add_tool_btn('Расход',     'расход')
 
@@ -86,12 +88,6 @@ class App:
             if self.role == 'sell' and val == 'buy':
                 rb.state(['disabled'])
 
-
-    # ---------------- обработчики ----------------
-    def _on_div_change(self):
-        self.current_sub = self.div_var.get()
-        self._rebuild_nav_tree()
-        self._clear_content()
 
     
     # ---------------- контейнер для виджетов ----------------
@@ -132,8 +128,5 @@ class App:
             DocsWidget(self.content, tag)
         elif tag == 'остатки':
             StockWidget(self.content)
-
-    # ---------------- утилиты ----------------
-    def _clear_content(self):
-        for w in self.content.winfo_children():
-            w.destroy()
+        elif tag in ('prices', "цены"):
+            SalePricesWidget(self.content)

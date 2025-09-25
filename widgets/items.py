@@ -1,7 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
-from db_scripts import item_list, item_add, item_delete, Item
-from widgets.dialogs import ItemDialog   # ваш старый ItemDialog можно оставить тут же
+from db_scripts import item_list, item_add, item_delete, item_update, item_get
+from widgets.dialogs import ItemDialog
+
 
 class ItemsWidget:
     def __init__(self, parent):
@@ -20,7 +21,11 @@ class ItemsWidget:
         btn = ttk.Frame(self.frame)
         btn.pack(fill=tk.X)
         ttk.Button(btn, text='Добавить', command=self._add).pack(side=tk.LEFT)
-        ttk.Button(btn, text='Удалить', command=self._delete).pack(side=tk.LEFT)
+        ttk.Button(btn, text='Редактировать', command=self._edit).pack(side=tk.LEFT, padx=(5, 0))
+        ttk.Button(btn, text='Удалить',
+                   command=self._delete).pack(side=tk.LEFT)
+        
+        self.tv.bind("<Double-1>", lambda e: self._edit())
 
         self._refresh()
 
@@ -28,8 +33,20 @@ class ItemsWidget:
         for i in self.tv.get_children():
             self.tv.delete(i)
         for row in item_list():
-            self.tv.insert('', 'end', values=( row['name'],row['id'],
+            self.tv.insert('', 'end', values=(row['name'], row['id'],
                                               row['category']))
+
+    def _get_selected_item(self):
+        sel = self.tv.selection()
+        if not sel:
+            return None
+        item = self.tv.item(sel[0])
+        print(item)
+        return {
+            'id': item['values'][1],
+            'name': item['values'][0],
+            'category': item['values'][2] or None
+        }
 
     def _add(self):
         d = ItemDialog(self.frame)
@@ -39,7 +56,37 @@ class ItemsWidget:
                 item_add(**d.res)
                 self._refresh()
             except Exception as e:
-                messagebox.showerror('Ошибка', str(f"Не удалось вставить товар {d.res.name}"))
+                messagebox.showerror('Ошибка', str(
+                    f"Не удалось вставить товар {d.res.name}"))
+
+    def _edit(self):
+        selected = self._get_selected_item()
+        if not selected:
+            messagebox.showwarning(
+                "Внимание", "Выберите товар для редактирования")
+            return
+
+        # Получаем полные данные (включая buy_price) — item_list() их возвращает
+        full_data = item_get(int(selected["id"]))
+        if not full_data:
+            messagebox.showerror("Ошибка", "Товар не найден")
+            return
+        item_data = {
+            "name": full_data.name,
+            "id": full_data.id,
+            "category": full_data.category,
+            "buy_price": full_data.buy_price
+        }
+        d = ItemDialog(self.frame, item_id=item_data["id"], item_data=item_data)
+        self.frame.wait_window(d)
+        if d.res:
+            try:
+                print(d.res)
+                item_update(selected['id'], **d.res)
+                self._refresh()
+            except Exception as e:
+                messagebox.showerror(
+                    'Ошибка', f"Не удалось обновить товар:\n{e}")
 
     def _delete(self):
         sel = self.tv.selection()

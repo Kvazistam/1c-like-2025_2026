@@ -1,9 +1,6 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
-from datetime import date
-from db_scripts import Item, doc_list, doc_save_head, doc_update_head, doc_save_table, \
-                       doc_get, doc_post, doc_unpost, get_session, item_add, price_set, warehouse_list, contragent_list, item_list
-from tkcalendar import DateEntry
+from tkinter import ttk
+from db_scripts import doc_list
 
 from widgets.dialogs import DocDialog
 class DocsWidget:

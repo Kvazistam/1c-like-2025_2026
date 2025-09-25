@@ -3,13 +3,13 @@ init_db.py – миграция и демо-данные
 (ORM SQLAlchemy 2.0, регистр цен item_prices)
 """
 
-from datetime import date, timedelta
+from datetime import date
 
 from sqlalchemy import select
 from db_scripts import (
-    engine, Base, get_session, price_set,
+    engine, Base, get_session, sale_price_set,
     warehouse_add, contragent_add, item_add, user_add,
-    Item, ItemPrice  # импортируем модели
+    Item, SalePrice  # импортируем модели
 )
 
 DEMO = {
@@ -41,7 +41,7 @@ def migrate_with_price_register():
         if hasattr(Item, 'sell_price'):
             for it in s.scalars(select(Item)).all():
                 # первая цена «с начала времен»
-                s.add(ItemPrice(item_id=it.id, price=it.sell_price,
+                s.add(SalePrice(item_id=it.id, price=it.sell_price,
                                 date_from=date(2000, 1, 1)))
             s.commit()
             # ====== SQLite не умеет ALTER DROP, поэтому просто игнорируем поле ======
@@ -62,7 +62,7 @@ def main():
     for name, cat, buy, sell in DEMO["items"]:
         # item_add теперь сам создаёт запись в ItemPrice
         it_id = item_add(name, cat, buy)
-        price_set(it_id, sell) 
+        sale_price_set(it_id, sell, date.today()) 
 
     for u, p, r in DEMO["users"]:
         user_add(u, p, r)

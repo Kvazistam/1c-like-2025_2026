@@ -1,8 +1,10 @@
 from tkinter import ttk
 import tkinter as tk
 
+import sv_ttk
 def apply_1c_style(root):
     style = ttk.Style(root)
+
     style.theme_use('clam')
 
     # цвета 1С
