@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 from db_scripts import contragent_list, contragent_add, contragent_list_filter, contragent_update, contragent_delete
+from enumerates import CONTRAGENT_TYPES
 
 
 class ContragentsWidget:
@@ -27,7 +28,7 @@ class ContragentsWidget:
         self.tv.bind("<Double-1>", lambda e: self._edit())
 
     def _get_expected_type(self):
-        return 'supplier' if self.mode == 'buy' else 'customer'
+        return CONTRAGENT_TYPES[0] if self.mode == 'buy' else CONTRAGENT_TYPES[1]
     
     def _get_selected_id(self):
         sel = self.tv.selection()
@@ -48,7 +49,7 @@ class ContragentsWidget:
                                       prompt='Название:')
         if not name:
             return
-        tp = 'supplier' if self.mode == 'buy' else 'customer'
+        tp = CONTRAGENT_TYPES[0] if self.mode == 'buy' else CONTRAGENT_TYPES[1]
         try:
             contragent_add(name, tp)
             self._refresh()

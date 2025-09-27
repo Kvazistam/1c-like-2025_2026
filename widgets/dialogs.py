@@ -8,10 +8,12 @@ from PIL import Image, ImageTk
 import io
 from db_scripts import (
     # модели
-    item_list, contragent_list, warehouse_list, doc_save_head, doc_save_table, doc_get, doc_post, doc_unpost
+    item_list, warehouse_list, doc_save_head, doc_save_table, doc_get, doc_post, doc_unpost,
+    contragent_list_filter, contragent_get_id
 )
+
 from db_scripts.db_items import item_buy_price_get
-from enumerates import DOC_TYPES
+from enumerates import CONTRAGENT_TYPES, DOC_TYPES
 
 
 class ItemDialog(tk.Toplevel):
@@ -247,7 +249,8 @@ class DocDialog(tk.Toplevel):
                 w = ttk.Combobox(top, state='readonly', width=30)
                 w.grid(row=row, column=1, sticky='we', columnspan=3)
                 self.widgets['contragent'] = w
-                cons = contragent_list()
+                cont_type = CONTRAGENT_TYPES[0] if self.doc_type == DOC_TYPES[0] else CONTRAGENT_TYPES[1]
+                cons = contragent_list_filter(cont_type)
                 self.contr_map = {r['name']: r['id'] for r in cons}
                 w['values'] = list(self.contr_map.keys())
             elif text == 'Комментарий':
@@ -359,11 +362,9 @@ class DocDialog(tk.Toplevel):
         self.widgets['date'].set_date(d.date)
         self.widgets['comment'].insert(0, d.comment or '')
         self.posted.set(d.posted)
-        wh_name = next(n for n, i in self.wh_map.items() if i == d.warehouse_id)
-        self.widgets['warehouse'].set(wh_name)
+        self.widgets['warehouse'].set(d.warehouse.name)
         if d.contragent_id:
-            contr_name = next(n for n, i in self.contr_map.items() if i == d.contragent_id)
-            self.widgets['contragent'].set(contr_name)
+            self.widgets['contragent'].set(d.contragent.name)
         for line in d.lines:
             sm = line.qty * line.price
             self.tv.insert('', 'end', values=(line.item.name, line.qty, line.price, sm),

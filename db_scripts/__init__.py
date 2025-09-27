@@ -1,7 +1,7 @@
 from .db_items import item_list, item_add, item_update, item_delete, item_get, item_buy_price_get
 
 
-from .db_contragents import contragent_list, contragent_add, contragent_list_filter, contragent_delete, contragent_update
+from .db_contragents import contragent_list, contragent_add, contragent_list_filter, contragent_delete, contragent_update, contragent_get_id
 
 
 from .db_warehouses import warehouse_list, warehouse_add, warehouse_delete, warehouse_update
@@ -27,11 +27,13 @@ from .db_users import user_add, user_check
 # --- Утилиты (если есть) ---
 from .db_session import get_session, engine
 
+from .db_sales_report import get_sales_by_seller
+
 __all__ = [
     # Items
     'item_list', 'item_add', 'item_update', 'item_delete', 'item_get', 'item_buy_price_get',
     # Contragents
-    'contragent_list', 'contragent_add','contragent_list_filter',
+    'contragent_list', 'contragent_add','contragent_list_filter', 'contragent_get_id',
     # Warehouses
     'warehouse_list', 'warehouse_add',
     # Docs
@@ -45,5 +47,7 @@ __all__ = [
     # Users
     'user_add', 'user_check',
     # Utils
-    'get_session', 'engine'
+    'get_session', 'engine',
+    #Sale Report
+    "get_sales_by_seller",
 ]

@@ -23,7 +23,7 @@ class DocsWidget:
 
         btn_frame = ttk.Frame(self.parent)
         btn_frame.pack(fill=tk.X, pady=4)
-        ttk.Button(btn_frame, text='Создать', command=self._edit).pack(side=tk.LEFT, padx=2)
+        ttk.Button(btn_frame, text='Создать', command=self._create).pack(side=tk.LEFT, padx=2)
         ttk.Button(btn_frame, text='Удалить', command=self._delete).pack(side=tk.LEFT, padx=2)  
         self.tv.bind('<Double-1>', lambda e: self._edit())
 

@@ -2,8 +2,17 @@
 import tkinter as tk
 from tkinter import ttk
 from app_style import apply_1c_style
-from widgets import ItemsWidget, ContragentsWidget, WarehousesWidget, DocsWidget, StockWidget
-from widgets.sale_prices import SalePricesWidget
+
+from widgets import (
+    ItemsWidget, 
+    ContragentsWidget, 
+    WarehousesWidget,
+    DocsWidget, 
+    StockWidget, 
+    SalesReportWidget, 
+    SalePricesWidget
+    )
+
 
 class App:
     def __init__(self, master: tk.Tk, role: str):
@@ -55,6 +64,7 @@ class App:
             self._add_tool_btn('Цены', 'prices')
             self._add_tool_btn('Покупатели', 'contragents')
             self._add_tool_btn('Расход',     'расход')
+            self._add_tool_btn('Отчёт по покупателям', 'sales_report')
 
         # можно добавить ещё «Цены» или что нужно
         # self._add_tool_btn('Цены', 'prices')
@@ -130,3 +140,5 @@ class App:
             StockWidget(self.content)
         elif tag in ('prices', "цены"):
             SalePricesWidget(self.content)
+        elif tag == 'sales_report':
+            SalesReportWidget(self.content)

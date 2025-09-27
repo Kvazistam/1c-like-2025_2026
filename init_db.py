@@ -11,13 +11,14 @@ from db_scripts import (
     get_session, sale_price_set,
     warehouse_add, contragent_add, item_add, user_add, engine
 )
+from enumerates import CONTRAGENT_TYPES
 
 DEMO = {
     "warehouses": ["Основной склад", "Резервный склад"],
     "contragents": [
-        ("ЯпонОпт", "supplier"),
+        ("ЯпонОпт", CONTRAGENT_TYPES[0]),
         ("АнимеДистриб", "supplier"),
-        ("Розничный покупатель", "customer"),
+        ("Розничный покупатель", CONTRAGENT_TYPES[1]),
     ],
     "items": [
         ( "Rem Figma Re:Zero", "Figma", 2200, 3500),

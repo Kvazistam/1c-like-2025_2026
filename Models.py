@@ -55,7 +55,7 @@ class Contragent(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String)
-    type: Mapped[str] = mapped_column(String)  # supplier / customer
+    type: Mapped[str] = mapped_column(String)  # supplier / seller
 
     docs: Mapped[List["Doc"]] = relationship(back_populates="contragent")
 

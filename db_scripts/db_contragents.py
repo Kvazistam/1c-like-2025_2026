@@ -17,6 +17,11 @@ def contragent_list() -> List[Dict[str, Any]]:
     with get_session() as s:
         return [r.__dict__ for r in s.execute(select(Contragent)).scalars().all()]
 
+def contragent_get_id(id: int):
+    with get_session() as s:
+        res = s.get(Contragent, id)
+    return res
+
 
 def contragent_add(name: str, type_: str) -> int:
     with get_session() as s:
