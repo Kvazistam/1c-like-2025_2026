@@ -17,7 +17,7 @@ DEMO = {
     "warehouses": ["Основной склад", "Резервный склад"],
     "contragents": [
         ("ЯпонОпт", CONTRAGENT_TYPES[0]),
-        ("АнимеДистриб", "supplier"),
+        ("АнимеДистриб", CONTRAGENT_TYPES[0]),
         ("Розничный покупатель", CONTRAGENT_TYPES[1]),
     ],
     "items": [

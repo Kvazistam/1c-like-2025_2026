@@ -5,7 +5,7 @@ from .db_contragents import contragent_list, contragent_add, contragent_list_fil
 
 
 from .db_warehouses import warehouse_list, warehouse_add, warehouse_delete, warehouse_update
-
+from .db_bonuses import get_bonus_balance, add_bonus, spend_bonus
 
 from .db_docs import (
     doc_save_head, doc_update_head, doc_list, doc_get, doc_delete,

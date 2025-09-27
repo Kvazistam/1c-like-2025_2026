@@ -11,8 +11,8 @@ from Models import *
 from db_scripts.db_sale_prices import sale_price_get_date
 from db_scripts.db_session import get_session
 from db_scripts.db_stock import stock_on_date
-from enumerates import DOC_TYPES
-
+from enumerates import BONUS_PERCENT, DOC_TYPES
+from .db_bonuses import add_bonus, get_bonus_balance, set_bonus_balance, spend_bonus
 
 # --- Docs ---
 def doc_save_head(doc_type: str, date_: date, warehouse_id: int,
@@ -27,7 +27,8 @@ def doc_save_head(doc_type: str, date_: date, warehouse_id: int,
 
 
 def doc_update_head(doc_id: int, date_: date, warehouse_id: int,
-                    contragent_id: Optional[int], comment: Optional[str]) -> None:
+                    contragent_id: Optional[int], comment: Optional[str],
+                    bonus_mode: Optional[str] = None, bonus_amount: float = 0.0):
     with get_session() as s:
         d = s.get(Doc, doc_id)
         if d:
@@ -35,6 +36,9 @@ def doc_update_head(doc_id: int, date_: date, warehouse_id: int,
             d.warehouse_id = warehouse_id
             d.contragent_id = contragent_id
             d.comment = comment
+            if bonus_mode is not None:
+                d.bonus_mode = bonus_mode
+                d.bonus_amount = bonus_amount
             s.commit()
 
 
@@ -55,7 +59,7 @@ def doc_list(doc_type: str) -> List[Dict[str, Any]]:
 
 def doc_get(doc_id: int) -> Optional[Doc]:
     with get_session() as s:
-        return s.execute(
+        res =  s.execute(
             select(Doc)
             .options(
                 selectinload(Doc.lines).selectinload(DocsTable.item),
@@ -64,6 +68,7 @@ def doc_get(doc_id: int) -> Optional[Doc]:
             )
             .where(Doc.id == doc_id)
         ).scalar_one_or_none()
+    return res
 
 
 def doc_delete(doc_id: int) -> None:
@@ -92,6 +97,7 @@ def doc_save_table(doc_id: int, rows: List[Dict[str, Any]]) -> None:
 def doc_post(doc_id: int) -> None:
     with get_session() as s:
         d = s.get(Doc, doc_id)
+
         if not d:
             raise ValueError("Документ не найден")
         if d.posted:
@@ -122,15 +128,57 @@ def doc_post(doc_id: int) -> None:
                        date=d.date)
             s.add(st)
 
+        # --- Бонусы (только для расхода) ---
+        if d.doc_type == DOC_TYPES[1] and d.contragent_id:
+            
+            total = sum(line.qty * line.price for line in d.lines)
+            
+
+            if d.bonus_mode == "save":
+                bonus_earned = total * BONUS_PERCENT  # 5%
+
+                add_bonus(d.contragent_id, bonus_earned)
+                d.bonus_amount = bonus_earned
+            elif d.bonus_mode == "spend":
+                if d.bonus_amount > 0:
+                    # Проверка: не больше 50% и не больше баланса
+                    if d.bonus_amount > total / 2:
+                        raise ValueError("Бонусами можно оплатить не более 50% суммы")
+                    spend_bonus(d.contragent_id, d.bonus_amount)
+
         d.posted = True
         s.commit()
+
+
+
 
 
 def doc_unpost(doc_id: int) -> None:
     with get_session() as s:
         d = s.get(Doc, doc_id)
-        if d:
-            d.posted = False
-            s.execute(delete(Stock).where(Stock.doc_id == doc_id))
-            s.commit()
+        if not d or not d.posted:
+            return
 
+
+        if d.doc_type == DOC_TYPES[1] and d.contragent_id and d.bonus_amount > 0:
+
+            if d.bonus_mode == "save":
+ 
+                s.execute(
+                    update(BonusBalance)
+                    .where(BonusBalance.contragent_id == d.contragent_id)
+                    .values(balance=BonusBalance.balance - d.bonus_amount)
+                )
+            elif d.bonus_mode == "spend":
+
+                s.execute(
+                    update(BonusBalance)
+                    .where(BonusBalance.contragent_id == d.contragent_id)
+                    .values(balance=BonusBalance.balance + d.bonus_amount)
+                )
+
+
+
+
+        d.posted = False
+        s.commit()

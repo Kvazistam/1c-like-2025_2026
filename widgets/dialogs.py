@@ -9,7 +9,7 @@ import io
 from db_scripts import (
     # модели
     item_list, warehouse_list, doc_save_head, doc_save_table, doc_get, doc_post, doc_unpost,
-    contragent_list_filter, contragent_get_id
+    contragent_list_filter, contragent_get_id, add_bonus, spend_bonus, get_bonus_balance
 )
 
 from db_scripts.db_items import item_buy_price_get
@@ -208,7 +208,7 @@ class DocDialog(tk.Toplevel):
         self.doc_id = doc_id
         self.on_close = on_close
         self.title('Продажа' if doc_type == DOC_TYPES[1] else 'Закупка')
-        self.geometry('700x500')
+        self.geometry('700x700')
         self._build_head()
         self._build_table()
         if doc_id:
@@ -253,14 +253,38 @@ class DocDialog(tk.Toplevel):
                 cons = contragent_list_filter(cont_type)
                 self.contr_map = {r['name']: r['id'] for r in cons}
                 w['values'] = list(self.contr_map.keys())
+                self.widgets['contragent'].bind("<<ComboboxSelected>>", self._on_contragent_select)
             elif text == 'Комментарий':
                 w = ttk.Entry(top)
                 w.grid(row=row, column=1, sticky='we', columnspan=3)
                 self.widgets['comment'] = w
-
+        if self.doc_type == DOC_TYPES[1]:
+            self._build_bonuses(top, row=row+1)
         self.posted = tk.IntVar()
         ttk.Checkbutton(top, text='Проведён', variable=self.posted, state='disabled').grid(
-            row=4, column=0, columnspan=2, sticky=tk.W)
+            row=row+1, column=0, columnspan=2, sticky=tk.W) 
+            
+            
+    def _build_bonuses(self, top, row):
+        ttk.Label(top, text="Бонусы").grid(row=row, column=0, sticky=tk.W, padx=(0, 3), pady=4)
+
+        bonus_frame = ttk.Frame(top)
+        bonus_frame.grid(row=row, column=1, sticky='we', columnspan=3)
+
+        self.bonus_mode = tk.StringVar(value="save")
+        ttk.Radiobutton(bonus_frame, text="Копить", variable=self.bonus_mode, value="save").pack(side=tk.LEFT)
+        ttk.Radiobutton(bonus_frame, text="Тратить", variable=self.bonus_mode, value="spend").pack(side=tk.LEFT, padx=(10, 0))
+
+        self.bonus_entry = ttk.Entry(bonus_frame, width=10, state='disabled')
+        self.bonus_entry.pack(side=tk.LEFT, padx=(10, 0))
+        ttk.Label(bonus_frame, text="руб.").pack(side=tk.LEFT)
+
+        self.bonus_mode.trace_add("write", self._on_bonus_mode_change)
+
+
+        self.bonus_balance_label = ttk.Label(top, text="Баланс: 0 руб.")
+        self.bonus_balance_label.grid(row=row+1, column=1, sticky='w')
+            
 
     def _build_table(self):
         mid = ttk.Frame(self)
@@ -282,7 +306,30 @@ class DocDialog(tk.Toplevel):
         
         ttk.Button(mid, text='Добавить строку', command=self._add_row).pack(padx=5, side='left')
 
+    def _on_contragent_select(self, event=None):
+        """Вызывается при выборе контрагента."""
+        self._update_bonus_info()
+    def _on_bonus_mode_change(self, *args):
+        if self.bonus_mode.get() == "spend":
+            self.bonus_entry.config(state='normal')
+        else:
+            self.bonus_entry.config(state='disabled')
+            self.bonus_entry.delete(0, tk.END)
 
+    def _update_bonus_info(self):
+        """Обновить информацию о бонусах (баланс)."""
+        
+        contr_name = self.widgets['contragent'].get()
+        if not contr_name:
+            self.bonus_balance_label.config(text="Выберите покупателя")
+            return
+        contr_id = self.contr_map.get(contr_name)
+        if not contr_id:
+            return
+        balance = get_bonus_balance(contr_id)
+        self.bonus_balance_label.config(text=f"Баланс: {balance:.0f} руб.")
+        
+        
     def _add_row(self):
         # Передаём тип документа и текущую дату
         current_date = self.widgets['date'].get_date()
@@ -388,11 +435,25 @@ class DocDialog(tk.Toplevel):
             item_id = int(self.tv.item(it)['tags'][0])
             qty, price = float(vals[1]), float(vals[2])
             rows.append({'item_id': item_id, 'qty': qty, 'price': price})
+            
+        # Обновляем шапку с бонусами
+        bonus_mode = self.bonus_mode.get() if self.doc_type == 'расход' else None
+        try:
+            bonus_amount = float(self.bonus_entry.get() or 0) if bonus_mode == "spend" else 0.0
+        except ValueError:
+            bonus_amount = 0.0
+        doc_update_head(
+                    self.doc_id, date_, wh_id, contr_id, comment,
+                    bonus_mode=bonus_mode,
+                    bonus_amount=bonus_amount
+                )
         doc_save_table(self.doc_id, rows)
+
 
         if self.on_close:
             self.on_close()
 
+    
     def _post(self):
         self._save()
         try:

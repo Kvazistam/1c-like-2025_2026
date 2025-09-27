@@ -10,7 +10,8 @@ from widgets import (
     DocsWidget, 
     StockWidget, 
     SalesReportWidget, 
-    SalePricesWidget
+    SalePricesWidget,
+    BonusReportWidget
     )
 
 
@@ -63,6 +64,7 @@ class App:
         else:  # sell
             self._add_tool_btn('Цены', 'prices')
             self._add_tool_btn('Покупатели', 'contragents')
+            self._add_tool_btn('Бонусы', 'bonus_report')
             self._add_tool_btn('Расход',     'расход')
             self._add_tool_btn('Отчёт по покупателям', 'sales_report')
 
@@ -142,3 +144,5 @@ class App:
             SalePricesWidget(self.content)
         elif tag == 'sales_report':
             SalesReportWidget(self.content)
+        elif tag == 'bonus_report':
+            BonusReportWidget(self.content)

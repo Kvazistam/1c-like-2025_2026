@@ -5,6 +5,7 @@ from .docs       import DocsWidget
 from .stock      import StockWidget
 from .sale_prices import SalePricesWidget
 from .sales_report import SalesReportWidget
+from .bonus_report import BonusReportWidget
 
 __all__ = ['ItemsWidget', 'ContragentsWidget', 'WarehousesWidget',
-           'DocsWidget', 'StockWidget', 'SalePricesWidget', 'SalesReportWidget']
+           'DocsWidget', 'StockWidget', 'SalePricesWidget', 'SalesReportWidget', 'BonusReportWidget']

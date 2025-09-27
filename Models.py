@@ -23,6 +23,8 @@ DB_URL = f"sqlite:///{DB_PATH}"
 engine: Engine = create_engine(DB_URL, echo=False, future=True)
 
 
+
+
 # ---- FK включить для SQLite ----
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
@@ -80,12 +82,15 @@ class Doc(Base):
     warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
     comment: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     posted: Mapped[bool] = mapped_column(Boolean, default=False)
-
+    
+    bonus_mode: Mapped[str] = mapped_column(String, nullable=True)  # 'save' или 'spend'
+    bonus_amount: Mapped[float] = mapped_column(Float, default=0.0)  # сумма бонусов
+    
     contragent: Mapped[Optional["Contragent"]] = relationship(back_populates="docs")
     warehouse: Mapped["Warehouse"] = relationship(back_populates="docs")
+    
     lines: Mapped[List["DocsTable"]] = relationship(back_populates="doc", cascade="all, delete-orphan")
     stocks: Mapped[List["Stock"]] = relationship(back_populates="doc", cascade="all, delete-orphan")
-
 
 class DocsTable(Base):
     __tablename__ = "docs_table"
@@ -95,7 +100,7 @@ class DocsTable(Base):
     item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
     qty: Mapped[float] = mapped_column(Float)
     price: Mapped[float] = mapped_column(Float)
-
+    
     doc: Mapped["Doc"] = relationship(back_populates="lines")
     item: Mapped["Item"] = relationship(back_populates="lines")
 
@@ -129,3 +134,17 @@ class SalePrice(Base):
     start_date: Mapped[date] = mapped_column(Date)
     price: Mapped[float] = mapped_column(Float)
     item: Mapped["Item"] = relationship()
+    
+    
+
+
+class BonusBalance(Base):
+    __tablename__ = "bonus_balances"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    contragent_id: Mapped[int] = mapped_column(ForeignKey("contragents.id"), unique=True)
+    balance: Mapped[float] = mapped_column(Float, default=0.0)  
+
+    contragent: Mapped["Contragent"] = relationship()
+    
+    
