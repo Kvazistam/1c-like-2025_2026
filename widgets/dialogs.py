@@ -12,6 +12,8 @@ from db_scripts import (
 )
 from db_scripts.db_items import item_buy_price_get
 from enumerates import DOC_TYPES
+
+
 class ItemDialog(tk.Toplevel):
     def __init__(self, master, item_id = None, item_data: dict = None):
         super().__init__(master)
@@ -21,7 +23,7 @@ class ItemDialog(tk.Toplevel):
         self.image = None
         self.image_label = None  
 
-        labels = ("Название", "Категория", "Цена закупки")
+        labels = ("Название", "Категория")
         self.entries = {}
         for i, lbl in enumerate(labels):
             ttk.Label(self, text=lbl).grid(row=i, column=0, sticky=tk.W, padx=6, pady=4)
@@ -55,7 +57,6 @@ class ItemDialog(tk.Toplevel):
             cat = item_data.get('category')
             if cat:
                 self.entries['категория'].insert(0, cat)
-            self.entries['цена_закупки'].insert(0, str(item_data.get('buy_price', 0)))
             
             if item_data.get('image'):
                 self.image_bytes = item_data['image']
@@ -110,19 +111,16 @@ class ItemDialog(tk.Toplevel):
             messagebox.showerror("Ошибка", "Название обязательно", parent=self)
             return
         category = self.entries['категория'].get().strip() or None
-        try:
-            buy_price = float(self.entries["цена_закупки"].get() or 0)
-        except ValueError:
-            messagebox.showerror("Ошибка", "Некорректная цена закупки", parent=self)
-            return
+       
 
         self.res = {
             'name': name,
             'category': category,
-            'buy_price': buy_price,
+            # 'buy_price': buy_price,
             'image': self.image_bytes
         }
         self.destroy()
+
 
 class SalePriceDialog(tk.Toplevel):
     def __init__(self, master, price_id=None, on_save=None):
@@ -152,13 +150,13 @@ class SalePriceDialog(tk.Toplevel):
         ttk.Button(btn_frame, text="Сохранить", command=self._save).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="Отмена", command=self.destroy).pack(side=tk.LEFT, padx=5)
 
+        items = item_list()
+        self.item_map = {r['name']: r['id'] for r in items}
+        self.item_cb['values'] = list(self.item_map.keys())
+            
         if price_id:
             self._load(price_id)
         else:
-            # Заполним список товаров
-            items = item_list()
-            self.item_map = {r['name']: r['id'] for r in items}
-            self.item_cb['values'] = list(self.item_map.keys())
             if items:
                 self.item_cb.current(0)
 
@@ -167,8 +165,7 @@ class SalePriceDialog(tk.Toplevel):
     def _load(self, price_id):
         reg = sale_price_get_id(price_id)
         if reg:
-            # Найдём имя товара по item_id
-            item_id = reg.item_id
+
             item_name = reg.item.name
             item_date = reg.start_date
             item_price = reg.price
@@ -182,6 +179,7 @@ class SalePriceDialog(tk.Toplevel):
             if not item_name:
                 messagebox.showerror("Ошибка", "Выберите товар")
                 return
+            
             item_id = self.item_map[item_name]
             start_date = self.date_entry.get_date()
             price = float(self.price_entry.get())
@@ -200,134 +198,6 @@ class SalePriceDialog(tk.Toplevel):
             messagebox.showerror("Ошибка", str(e))
 
 
-#------Диалог Цены--------
-class PriceDialog(tk.Toplevel):
-    def __init__(self, master, doc_id=None, item_id = None, date = None, on_close=None):
-        super().__init__(master)
-        self.doc_id = doc_id
-        self.item_id = item_id
-        self.on_close = on_close
-        self.title('Регистр')
-        self.geometry('700x500')
-        self._build_head()
-        if item_id:
-            self._load_doc()
-        else:
-            self.widgets['date'].set_date(date.today())
-            self.posted.set(0)
-
-        btn_bar = ttk.Frame(self)
-        btn_bar.pack(fill=tk.X, pady=4)
-        ttk.Button(btn_bar, text='Сохранить', command=self._save).pack(side=tk.LEFT, padx=4)
-        ttk.Button(btn_bar, text='Провести', command=self._post).pack(side=tk.LEFT, padx=4)
-        ttk.Button(btn_bar, text='Отменить проводку', command=self._unpost).pack(side=tk.LEFT, padx=4)
-
-    # ---------- head ----------
-    def _build_head(self):
-        top = ttk.Frame(self)
-        top.pack(fill=tk.X, padx=6, pady=6)
-        top.columnconfigure(1, weight=1)
-        top.columnconfigure(3, weight=1)
-        labels = (('Дата', 0), ('Товар', 1), ('Цена', 2))
-        self.widgets = {}
-        for text, row in labels:
-
-            ttk.Label(top, text=text).grid(row=row, column=0,
-                                        sticky=tk.W, padx=(0, 3), pady=4)
-            if text == 'Дата':
-                w = DateEntry(top, width=12, justify = "right")
-                w.grid(row=row, column=1, sticky='we')  
-                self.widgets['date'] = w
-
-            elif text == 'Товар':
-                w = ttk.Combobox(top, state='readonly', width=20)
-                w.grid(row=row, column=1, sticky='we')   
-                self.widgets['items'] = w
-                items = item_list()
-                self.items_map = {r['name']: r['id'] for r in items}
-                w['values'] = list(self.items_map.keys())
-                if items:
-                    w.current(0)
-
-            elif text == 'Цена':
-                w = ttk.Entry(top)
-                w.grid(row=row, column=1, sticky='we', columnspan=3)
-                self.widgets['price'] = w
-
-        self.posted = tk.IntVar()
-        ttk.Checkbutton(top, text='Проведён', variable=self.posted, state='disabled').grid(
-            row=row+1, column=0, columnspan=2, sticky='w')
-
-
-    # ---------- загрузка документа ----------
-    def _load_reg(self):
-        d = sale_price_get_id(self.doc_id)
-        if not d:
-            return
-        self.widgets['date'].set_date(d.date_from)
-        self.widgets['item'].insert(0, d.items or '')
-        self.posted.set(d.posted)
-        wh_name = next(n for n, i in self.wh_map.items() if i == d.warehouse_id)
-        self.widgets['warehouse'].set(wh_name)
-        if d.contragent_id:
-            contr_name = next(n for n, i in self.contr_map.items() if i == d.contragent_id)
-            self.widgets['contragent'].set(contr_name)
-        for line in d.lines:
-            sm = line.qty * line.price
-            self.tv.insert('', 'end', values=(line.item.name, line.qty, line.price, sm),
-                           tags=(line.item_id,))
-
-    
-    def _save(self):
-        # head
-        wh_id = self.wh_map[self.widgets['warehouse'].get()]
-        contr_name = self.widgets['contragent'].get()
-        contr_id = self.contr_map.get(contr_name)
-        date_ = self.widgets['date'].get_date()
-        comment = self.widgets['comment'].get()
-
-        if not self.doc_id:
-            self.doc_id = doc_save_head(self.doc_type, date_, wh_id, contr_id, comment)
-        else:
-            doc_update_head(self.doc_id, date_, wh_id, contr_id, comment)
-
-        # table
-        rows = []
-        for it in self.tv.get_children():
-            vals = self.tv.item(it)['values']
-            item_id = int(self.tv.item(it)['tags'][0])
-            qty, price = float(vals[1]), float(vals[2])
-            rows.append({'item_id': item_id, 'qty': qty, 'price': price})
-        doc_save_table(self.doc_id, rows)
-        # messagebox.showinfo("Сохранено", "Документ сохранён")
-        if self.on_close:
-                self.on_close()
-
-    # ---------- проводки ----------
-    def _post(self):
-        self._save()
-        try:
-            doc_post(self.doc_id)
-            messagebox.showinfo('Проведён', 'Документ проведён')
-            self.destroy()
-            if self.on_close:
-                self.on_close()
-        except Exception as e:
-            messagebox.showerror('Ошибка', str(e))
-
-    def _unpost(self):
-        try:
-            doc_unpost(self.doc_id)
-            messagebox.showinfo('Отмена', 'Проводка отменена')
-            self.destroy()
-            if self.on_close:
-                self.on_close()
-        except Exception as e:
-            messagebox.showerror('Ошибка', str(e))
-
-# ---------- диалог документа ----------
-
-# widgets/dialogs.py (продолжение)
 
 class DocDialog(tk.Toplevel):
     def __init__(self, master, doc_type, doc_id=None, on_close=None):
@@ -398,7 +268,17 @@ class DocDialog(tk.Toplevel):
             self.tv.heading(c, text=c)
             self.tv.column(c, width=120)
         self.tv.pack(fill=tk.BOTH, expand=1)
-        ttk.Button(mid, text='Добавить строку', command=self._add_row).pack(pady=(5, 0))
+        
+        
+        self.context_menu = tk.Menu(self.tv, tearoff=0)
+        self.context_menu.add_command(label="Редактировать", command=self._edit_row)
+        self.context_menu.add_command(label="Удалить", command=self._delete_row)
+        self.tv.bind("<Button-3>", self._show_context_menu)  
+        self.tv.bind("<Delete>", lambda e: self._delete_row())  
+        self.tv.bind("<Double-1>", lambda e: self._edit_row())  
+        
+        ttk.Button(mid, text='Добавить строку', command=self._add_row).pack(padx=5, side='left')
+
 
     def _add_row(self):
         # Передаём тип документа и текущую дату
@@ -414,10 +294,68 @@ class DocDialog(tk.Toplevel):
                 sm
             ), tags=(d.res['item_id'],))
 
+    def _show_context_menu(self, event):
+        """Показать контекстное меню по ПКМ."""
+        item = self.tv.identify_row(event.y)
+        if item:
+            self.tv.selection_set(item)
+            self.context_menu.post(event.x_root, event.y_root)
+
+    def _edit_row(self):
+        """Редактировать выбранную строку."""
+        sel = self.tv.selection()
+        if not sel:
+            return
+        # Получаем текущие данные строки
+        values = self.tv.item(sel[0])['values']
+        tags = self.tv.item(sel[0])['tags']
+        if not tags:
+            return
+            
+        item_id = int(tags[0])
+        item_name = values[0]
+        qty = float(values[1])
+        price = float(values[2])
+        
+        # Открываем диалог с предзаполненными данными
+        current_date = self.widgets['date'].get_date()
+        d = DocRowDialog(self, doc_type=self.doc_type, doc_date=current_date)
+        # Предзаполняем поля
+        d.cb.set(item_name)
+        d.e_qty.delete(0, tk.END)
+        d.e_qty.insert(0, str(qty))
+        d.e_price.config(state='normal')
+        d.e_price.delete(0, tk.END)
+        d.e_price.insert(0, str(price))
+        if self.doc_type == DOC_TYPES[1]:  # расход — делаем readonly после установки
+            d.e_price.config(state='readonly')
+        self.wait_window(d)
+        
+        if d.res:
+            sm = d.res['qty'] * d.res['price']
+            self.tv.item(sel[0], values=(d.res['item_name'], d.res['qty'], d.res['price'], sm), tags=(d.res['item_id'],))
+
+    def _delete_row(self):
+        """Удалить выбранную строку."""
+        sel = self.tv.selection()
+        if not sel:
+            return
+        self.tv.delete(sel[0])
+    
     def _load_doc(self):
         d = doc_get(self.doc_id)
         if not d:
             return
+        if d.posted:
+            try:
+                doc_unpost(self.doc_id)
+                # Обновим данные после отмены
+                d = doc_get(self.doc_id)
+            except Exception as e:
+                from tkinter import messagebox
+                messagebox.showerror("Ошибка", f"Не удалось отменить проводку:\n{e}")
+                self.destroy()
+                return
         self.widgets['date'].set_date(d.date)
         self.widgets['comment'].insert(0, d.comment or '')
         self.posted.set(d.posted)
@@ -475,8 +413,6 @@ class DocDialog(tk.Toplevel):
         except Exception as e:
             messagebox.showerror('Ошибка', str(e))
 
-      
-# widgets/dialogs.py
 
 
 class DocRowDialog(tk.Toplevel):

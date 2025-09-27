@@ -20,3 +20,17 @@ def warehouse_add(name: str) -> int:
         s.add(w)
         s.commit()
         return w.id
+
+def warehouse_update(warehouse_id: int, name: str) -> None:
+    with get_session() as s:
+        w = s.get(Warehouse, warehouse_id)
+        if w:
+            w.name = name
+            s.commit()
+
+def warehouse_delete(warehouse_id: int) -> None:
+    with get_session() as s:
+        w = s.get(Warehouse, warehouse_id)
+        if w:
+            s.delete(w)
+            s.commit()

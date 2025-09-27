@@ -1,10 +1,10 @@
 from .db_items import item_list, item_add, item_update, item_delete, item_get, item_buy_price_get
 
 
-from .db_contragents import contragent_list, contragent_add
+from .db_contragents import contragent_list, contragent_add, contragent_list_filter, contragent_delete, contragent_update
 
 
-from .db_warehouses import warehouse_list, warehouse_add
+from .db_warehouses import warehouse_list, warehouse_add, warehouse_delete, warehouse_update
 
 
 from .db_docs import (
@@ -31,7 +31,7 @@ __all__ = [
     # Items
     'item_list', 'item_add', 'item_update', 'item_delete', 'item_get', 'item_buy_price_get',
     # Contragents
-    'contragent_list', 'contragent_add',
+    'contragent_list', 'contragent_add','contragent_list_filter',
     # Warehouses
     'warehouse_list', 'warehouse_add',
     # Docs
