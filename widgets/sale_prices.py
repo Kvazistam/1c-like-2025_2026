@@ -60,7 +60,6 @@ class SalePricesWidget:
         if not sel:
             messagebox.showwarning("Внимание", "Выберите запись")
             return None
-        print(int(self.tree.item(sel[0])['values'][0]))
         return int(self.tree.item(sel[0])['values'][0])
 
     def _add(self):

@@ -41,7 +41,6 @@ class ItemsWidget:
         if not sel:
             return None
         item = self.tv.item(sel[0])
-        print(item)
         return {
             'id': item['values'][1],
             'name': item['values'][0],
@@ -75,13 +74,13 @@ class ItemsWidget:
             "name": full_data.name,
             "id": full_data.id,
             "category": full_data.category,
-            "buy_price": full_data.buy_price
+            "buy_price": full_data.buy_price,
+            "image": full_data.image
         }
         d = ItemDialog(self.frame, item_id=item_data["id"], item_data=item_data)
         self.frame.wait_window(d)
         if d.res:
             try:
-                print(d.res)
                 item_update(selected['id'], **d.res)
                 self._refresh()
             except Exception as e:
@@ -92,7 +91,6 @@ class ItemsWidget:
         sel = self.tv.selection()
         if not sel:
             return
-        print(sel)
         iid = int(self.tv.item(sel[0])['values'][1])
         try:
             item_delete(iid)

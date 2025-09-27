@@ -25,7 +25,7 @@ from .db_sale_prices import (
 from .db_users import user_add, user_check
 
 # --- Утилиты (если есть) ---
-from .db_session import get_session
+from .db_session import get_session, engine
 
 __all__ = [
     # Items
@@ -45,5 +45,5 @@ __all__ = [
     # Users
     'user_add', 'user_check',
     # Utils
-    'get_session'
+    'get_session', 'engine'
 ]

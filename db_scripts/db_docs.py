@@ -85,7 +85,6 @@ def doc_save_table(doc_id: int, rows: List[Dict[str, Any]]) -> None:
             line = DocsTable(doc_id=doc_id, item_id=r['item_id'],
                              qty=r['qty'], price=r['price'])
             s.add(line)
-        print('doc_id:', doc_id, 'rows:', rows)
         s.commit()
   
   

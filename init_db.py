@@ -6,10 +6,10 @@ init_db.py – миграция и демо-данные
 from datetime import date
 
 from sqlalchemy import select
+from Models import Base, Item, SalePrice
 from db_scripts import (
-    engine, Base, get_session, sale_price_set,
-    warehouse_add, contragent_add, item_add, user_add,
-    Item, SalePrice  # импортируем модели
+    get_session, sale_price_set,
+    warehouse_add, contragent_add, item_add, user_add, engine
 )
 
 DEMO = {

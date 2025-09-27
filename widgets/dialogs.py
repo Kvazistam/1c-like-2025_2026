@@ -11,11 +11,11 @@ from db_scripts import (
     item_list, contragent_list, warehouse_list, doc_save_head, doc_save_table, doc_get, doc_post, doc_unpost,
 )
 class ItemDialog(tk.Toplevel):
-    def __init__(self, master, item_id = None, item_data = None):
+    def __init__(self, master, item_id = None, item_data: dict = None):
         super().__init__(master)
         self.res = None
         self.title("Товар")
-        self.geometry("500x500")
+        self.geometry("500x700")
         self.image = None
         self.image_label = None  
 
@@ -34,25 +34,27 @@ class ItemDialog(tk.Toplevel):
         ttk.Button(self, text="Выбрать...", command=self.pick_image).grid(row=len(labels), column=1, sticky=tk.W, padx=6)
         
         # Место для отображения картинки
-        self.image_label = tk.Label(self, bg="white", relief="sunken", width=20, height=10)
-        self.image_label.grid(row=len(labels)+1, column=0, columnspan=2, padx=10, pady=5, sticky="nsew")
+        self.image_label = tk.Label(self, bg="white", relief="sunken")
+        self.image_label.grid(row=len(labels)+1, column=0, columnspan=2, sticky="nswe")
         self._show_placeholder()
 
         # Кнопка сохранения
         ttk.Button(self, text="Сохранить", command=self.on_save).grid(
-            row=img_row+2, column=1, pady=10, sticky=tk.E
+            row=img_row+2, column=0, pady=10, padx = 6, sticky='w'
         )
 
         self.columnconfigure(1, weight=1)
         self.rowconfigure(img_row+1, weight=1)
         self.image_bytes = None
+        
+        
         if item_data:
             self.entries['название'].insert(0, item_data.get('name', ''))
             cat = item_data.get('category')
             if cat:
                 self.entries['категория'].insert(0, cat)
             self.entries['цена_закупки'].insert(0, str(item_data.get('buy_price', 0)))
-            # Загрузить изображение из БД
+            
             if item_data.get('image'):
                 self.image_bytes = item_data['image']
                 self._show_image(self.image_bytes)
@@ -65,21 +67,22 @@ class ItemDialog(tk.Toplevel):
         self.image_label.config(image='', text="Нет изображения", compound="center")
 
     def _show_image(self, image_bytes: bytes):
-        """Отобразить изображение из байтов."""
+        """Отобразить изображение, масштабированное под размер Label."""
         try:
-            # Загрузить из байтов
-            image = Image.open(io.BytesIO(image_bytes))
-            # Масштабировать с сохранением пропорций
-            image.thumbnail((180, 180), Image.LANCZOS)
-            # Конвертировать в PhotoImage
-            photo = ImageTk.PhotoImage(image)
-            # Сохранить ссылку (иначе сборщик мусора удалит)
-            self.photo = photo
-            # Отобразить
-            self.image_label.config(image=photo, text="", compound="none")
+            original = Image.open(io.BytesIO(image_bytes))
+
+            target_width = 500
+            target_height = 500
+
+
+            original.thumbnail((target_width, target_height), Image.LANCZOS)
+            resized = original
+
+            self.photo = ImageTk.PhotoImage(resized)
+            self.image_label.config(image=self.photo, text="", width=target_width, height=target_height)
         except Exception as e:
-            self._show_placeholder()
             print(f"Ошибка отображения изображения: {e}")
+            self._show_placeholder()
 
 
     def pick_image(self):
