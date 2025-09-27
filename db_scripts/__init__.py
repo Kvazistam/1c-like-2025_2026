@@ -1,4 +1,4 @@
-from .db_items import item_list, item_add, item_update, item_delete, item_get
+from .db_items import item_list, item_add, item_update, item_delete, item_get, item_buy_price_get
 
 
 from .db_contragents import contragent_list, contragent_add
@@ -29,7 +29,7 @@ from .db_session import get_session, engine
 
 __all__ = [
     # Items
-    'item_list', 'item_add', 'item_update', 'item_delete', 'item_get'
+    'item_list', 'item_add', 'item_update', 'item_delete', 'item_get', 'item_buy_price_get',
     # Contragents
     'contragent_list', 'contragent_add',
     # Warehouses

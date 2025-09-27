@@ -46,3 +46,7 @@ def item_get(item_id):
         item = s.get(Item, item_id)
         return item
         
+def item_buy_price_get(item_id):
+    with get_session() as s:
+        res = s.get(Item, item_id)
+    return res.buy_price

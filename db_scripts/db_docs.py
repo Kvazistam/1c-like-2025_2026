@@ -111,8 +111,9 @@ def doc_post(doc_id: int) -> None:
 
         for line in d.lines:
             # --------------- ключевое изменение ---------------
-            if d.doc_type == DOC_TYPES[1]:          # ПРОДАЖА
+            if d.doc_type == DOC_TYPES[1]:          
                 line.price = sale_price_get_date(line.item_id, d.date)
+                print(f"Должно подставляться: {line.price}")
             # --------------------------------------------------
 
             st = Stock(item_id=line.item_id,
