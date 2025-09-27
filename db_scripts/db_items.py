@@ -23,13 +23,12 @@ def item_add(name: str, category: Optional[str],
         s.commit()
         return it.id
 
-def item_update(item_id: int, name: str, category: Optional[str], buy_price: float, image: Optional[bytes] = None) -> None:
+def item_update(item_id: int, name: str, category: Optional[str], buy_price: float = None, image: Optional[bytes] = None) -> None:
     with get_session() as s:
         it = s.get(Item, item_id)
         if it:
             it.name = name
             it.category = category
-            it.buy_price = buy_price
             if image:
                 it.image = image
             s.commit()
