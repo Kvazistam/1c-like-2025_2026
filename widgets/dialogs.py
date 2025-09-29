@@ -221,7 +221,7 @@ class DocDialog(tk.Toplevel):
         btn_bar.pack(fill=tk.X, pady=4)
         ttk.Button(btn_bar, text='Сохранить', command=self._save).pack(side=tk.LEFT, padx=4)
         ttk.Button(btn_bar, text='Провести', command=self._post).pack(side=tk.LEFT, padx=4)
-        ttk.Button(btn_bar, text='Отменить проводку', command=self._unpost).pack(side=tk.LEFT, padx=4)
+        # ttk.Button(btn_bar, text='Отменить проводку', command=self._unpost).pack(side=tk.LEFT, padx=4)
 
     def _build_head(self):
         top = ttk.Frame(self)
@@ -308,7 +308,8 @@ class DocDialog(tk.Toplevel):
 
     def _on_contragent_select(self, event=None):
         """Вызывается при выборе контрагента."""
-        self._update_bonus_info()
+        if self.doc_type == DOC_TYPES[1]:
+            self._update_bonus_info()
     def _on_bonus_mode_change(self, *args):
         if self.bonus_mode.get() == "spend":
             self.bonus_entry.config(state='normal')
@@ -412,6 +413,7 @@ class DocDialog(tk.Toplevel):
         self.widgets['warehouse'].set(d.warehouse.name)
         if d.contragent_id:
             self.widgets['contragent'].set(d.contragent.name)
+            self._on_contragent_select()
         for line in d.lines:
             sm = line.qty * line.price
             self.tv.insert('', 'end', values=(line.item.name, line.qty, line.price, sm),
@@ -516,14 +518,17 @@ class DocRowDialog(tk.Toplevel):
         item_id = self.item_map[item_name]
         if not item_name:
             return
-        if self.doc_type == DOC_TYPES[0]:
-            price = item_buy_price_get(item_id)
-        else:
+        if self.doc_type == DOC_TYPES[1]:
             price = sale_price_get_date(item_id, self.doc_date)
-        self.e_price.config(state='normal')
-        self.e_price.delete(0, 'end')
-        self.e_price.insert(0, f"{price:.2f}")
-        self.e_price.config(state='readonly')
+            self.e_price.config(state='normal')
+            self.e_price.delete(0, 'end')
+            self.e_price.insert(0, f"{price:.2f}")
+            self.e_price.config(state='readonly')
+        else:
+            self.e_price.config(state='normal')
+            self.e_price.delete(0, 'end')
+            self.e_price.insert(0, 0)
+        
 
     def _ok(self):
         name = self.cb.get()

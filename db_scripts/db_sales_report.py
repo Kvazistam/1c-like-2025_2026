@@ -1,13 +1,12 @@
-# db_scripts/sales_report.py
 from sqlalchemy import select, func
-from Models import Doc, DocsTable, Contragent, Item, Stock
-from enumerates import CONTRAGENT_TYPES
+from Models import Doc, DocsTable, Contragent, Item
+from enumerates import DOC_TYPES, CONTRAGENT_TYPES
 from .db_session import get_session
 
 
 def get_sales_by_seller() -> list:
     """
-    Возвращает список покупателей с их заказами.
+    Возвращает список покупателей с агрегированными продажами по товарам.
     Формат:
     [
         {
@@ -15,7 +14,7 @@ def get_sales_by_seller() -> list:
             "total_qty": 6,
             "total_amount": 8046.0,
             "items": [
-                {"item_name": "Пластиковая фигурка DxD", "price": 2299.0, "qty": 3, "amount": 6897.0},
+                {"item_name": "Пластиковая фигурка DxD", "total_qty": 3, "total_amount": 6897.0},
                 ...
             ]
         },
@@ -27,15 +26,15 @@ def get_sales_by_seller() -> list:
             select(
                 Contragent.name.label(CONTRAGENT_TYPES[1]),
                 Item.name.label("item_name"),
-                DocsTable.price,
-                DocsTable.qty,
-                (DocsTable.qty * DocsTable.price).label("amount")
+                func.sum(DocsTable.qty).label("total_qty"),
+                func.sum(DocsTable.qty * DocsTable.price).label("total_amount")
             )
             .select_from(Doc)
             .join(Contragent, Doc.contragent_id == Contragent.id)
             .join(DocsTable, Doc.id == DocsTable.doc_id)
             .join(Item, DocsTable.item_id == Item.id)
-            .where(Doc.doc_type == 'расход')
+            .where(Doc.doc_type == DOC_TYPES[1])  # расход
+            .group_by(Contragent.name, Item.name)
             .order_by(Contragent.name, Item.name)
         )
 
@@ -44,22 +43,22 @@ def get_sales_by_seller() -> list:
         # Группируем по покупателю
         report = {}
         for row in rows:
-            seller = row[CONTRAGENT_TYPES[1]]
-            if seller not in report:
-                report[seller] = {
-                    CONTRAGENT_TYPES[1]: seller,
+            customer = row[CONTRAGENT_TYPES[1]]
+            if customer not in report:
+                report[customer] = {
+                    CONTRAGENT_TYPES[1]: customer,
                     "total_qty": 0.0,
                     "total_amount": 0.0,
                     "items": []
                 }
+
             item_data = {
                 "item_name": row['item_name'],
-                "price": row['price'],
-                "qty": row['qty'],
-                "amount": row['amount']
+                "total_qty": float(row['total_qty']),
+                "total_amount": float(row['total_amount'])
             }
-            report[seller]["items"].append(item_data)
-            report[seller]["total_qty"] += row['qty']
-            report[seller]["total_amount"] += row['amount']
+            report[customer]["items"].append(item_data)
+            report[customer]["total_qty"] += row['total_qty']
+            report[customer]["total_amount"] += row['total_amount']
 
         return list(report.values())

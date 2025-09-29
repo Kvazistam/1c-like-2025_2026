@@ -159,7 +159,7 @@ def doc_unpost(doc_id: int) -> None:
         if not d or not d.posted:
             return
 
-
+        
         if d.doc_type == DOC_TYPES[1] and d.contragent_id and d.bonus_amount > 0:
 
             if d.bonus_mode == "save":
@@ -179,6 +179,6 @@ def doc_unpost(doc_id: int) -> None:
 
 
 
-
+        s.execute(delete(Stock).where(Stock.doc_id == doc_id))
         d.posted = False
         s.commit()

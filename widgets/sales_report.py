@@ -12,7 +12,7 @@ class SalesReportWidget:
 
         ttk.Label(self.frame, text="Отчёт по покупателям").pack(pady=4)
 
-        cols = ("Покупатель", "Товар", "Цена", "Количество", "Сумма")
+        cols = ("Покупатель", "Товар", "Количество", "Сумма")
         self.tree = ttk.Treeview(self.frame, columns=cols, show="headings")
         for c in cols:
             self.tree.heading(c, text=c)
@@ -36,27 +36,24 @@ class SalesReportWidget:
             parent = self.tree.insert("", "end", values=(
                 seller_data[CONTRAGENT_TYPES[1]],
                 "",
-                "",
                 f"{seller_data['total_qty']:.0f}",
                 f"{seller_data['total_amount']:.0f}"
-            ), open=False)  # не раскрывать по умолчанию
+            ), open=True)  # не раскрывать по умолчанию
 
             # Добавляем строки товаров (дети)
             for item in seller_data["items"]:
                 child = self.tree.insert(parent, "end", values=(
                     "",
                     item["item_name"],
-                    f"{item['price']:.2f}",
-                    f"{item['qty']:.0f}",
-                    f"{item['amount']:.0f}"
+                    f"{item['total_qty']:.0f}",
+                    f"{item['total_amount']:.0f}"
                 ))
-                total_qty += item['qty']
-                total_amount += item['amount']
+                total_qty += item['total_qty']
+                total_amount += item['total_amount']
 
         # Добавляем итоговую строку
         self.tree.insert("", "end", values=(
             "Итого",
-            "",
             "",
             f"{total_qty:.0f}",
             f"{total_amount:.0f}"
