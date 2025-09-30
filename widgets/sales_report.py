@@ -26,7 +26,6 @@ class SalesReportWidget:
     def _refresh(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
-
         data = get_sales_by_seller()
         total_qty = 0
         total_amount = 0.0

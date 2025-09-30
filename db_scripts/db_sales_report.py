@@ -33,7 +33,7 @@ def get_sales_by_seller() -> list:
             .join(Contragent, Doc.contragent_id == Contragent.id)
             .join(DocsTable, Doc.id == DocsTable.doc_id)
             .join(Item, DocsTable.item_id == Item.id)
-            .where(Doc.doc_type == DOC_TYPES[1])  # расход
+            .where(Doc.doc_type == DOC_TYPES[1], Doc.posted == True) # расход
             .group_by(Contragent.name, Item.name)
             .order_by(Contragent.name, Item.name)
         )
