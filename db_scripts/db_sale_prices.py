@@ -22,11 +22,24 @@ def sale_price_get_date(item_id: int, on_date: date) -> float:
         )
         return row or 0.0
 
-def sale_price_set(item_id: int, new_price: float, start: date):
+def sale_price_set(item_id: int, new_price: float, start_date: date):
+    """
+    Устанавливает розничную цену на дату.
+    Если запись на эту дату уже существует — обновляет её.
+    """
+    start_date = start_date 
     with get_session() as s:
-        s.add(SalePrice(item_id=item_id,
-                        start_date=start,
-                        price=new_price))
+
+        existing = s.scalar(
+            select(SalePrice)
+            .where(SalePrice.item_id == item_id, SalePrice.start_date == start_date)
+        )
+        if existing:
+
+            existing.price = new_price
+        else:
+
+            s.add(SalePrice(item_id=item_id, start_date=start_date, price=new_price))
         s.commit()
         
 def sale_price_get_id(doc_id: int):
