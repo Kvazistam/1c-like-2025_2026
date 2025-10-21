@@ -14,7 +14,7 @@ from sqlalchemy.orm import (
     declarative_base, Mapped, mapped_column, relationship, Session
 )
 
-from enumerates import DOC_TYPES
+from enumerates import DOC_TYPES, ITEM_TYPES
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "anime1c.db")
 DB_URL = f"sqlite:///{DB_PATH}"
@@ -53,6 +53,17 @@ class Item(Base):
     report_unit_id: Mapped[Optional[int]] = mapped_column(ForeignKey("units_of_measure.id"))  # Для отчётов
 
     base_unit: Mapped[UnitOfMeasure] = relationship(foreign_keys=[base_unit_id])
+
+    item_type: Mapped[str] = mapped_column(String, default=ITEM_TYPES[0])  
+
+    base_unit_id: Mapped[int] = mapped_column(ForeignKey("units_of_measure.id"))        # Базовая ЕИ
+    storage_unit_id: Mapped[int] = mapped_column(ForeignKey("units_of_measure.id"))     # Для остатков
+    report_unit_id: Mapped[int] = mapped_column(ForeignKey("units_of_measure.id"))      # Для отчётов
+
+    # Связи
+    base_unit: Mapped[UnitOfMeasure] = relationship(foreign_keys=[base_unit_id])
+    storage_unit: Mapped[UnitOfMeasure] = relationship(foreign_keys=[storage_unit_id])
+    report_unit: Mapped[UnitOfMeasure] = relationship(foreign_keys=[report_unit_id])
     storage_unit: Mapped[Optional[UnitOfMeasure]] = relationship(foreign_keys=[storage_unit_id])
     report_unit: Mapped[Optional[UnitOfMeasure]] = relationship(foreign_keys=[report_unit_id])
     lines: Mapped[List["DocsTable"]] = relationship(back_populates="item")
@@ -168,7 +179,10 @@ class UnitOfMeasure(Base):
     ratio_to_base: Mapped[float] = mapped_column(Float, default=1.0)  # Сколько базовых в этой единице
     weight: Mapped[Optional[float]] = mapped_column(Float)  # Вес единицы (кг)
     volume: Mapped[Optional[float]] = mapped_column(Float)  # Объём (л)
-
+    
+    # Для каких типов товаров подходит
+    applicable_to: Mapped[str] = mapped_column(String, default=ITEM_TYPES[0])  
+    
     # Связь с базовой единицей (сама на себя)
     base_unit: Mapped["UnitOfMeasure"] = relationship(remote_side="UnitOfMeasure.id", back_populates="derived_units")
     derived_units: Mapped[List["UnitOfMeasure"]] = relationship(back_populates="base_unit")

@@ -17,6 +17,8 @@ class ItemsWidget:
             self.tv.heading(c, text=c)
             self.tv.column(c, width=120)
         self.tv.pack(fill=tk.BOTH, expand=1)
+        
+        
 
         btn = ttk.Frame(self.frame)
         btn.pack(fill=tk.X)

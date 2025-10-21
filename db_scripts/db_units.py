@@ -4,19 +4,27 @@ CRUD-операции для справочника «Единицы измер�
 
 from typing import List, Dict, Any, Optional
 
-from sqlalchemy import select
-from Models import UnitOfMeasure
+from sqlalchemy import or_, select
+from Models import Item, UnitOfMeasure
+from enumerates import ITEM_TYPES
 from .db_session import get_session
 
 def unit_list_for_item(item_id: int) -> List[Dict[str, Any]]:
-    """
-    Возвращает все единицы измерения, доступные для товара.
-    Пока возвращает все ЕИ (можно расширить логикой привязки к товару).
-    """
-    return unit_list()
+    """Возвращает ЕИ, доступные для данного товара."""
+    with get_session() as s:
+        item = s.get(Item, item_id)
+        if not item:
+            return []
+
+        stmt = select(UnitOfMeasure.id, UnitOfMeasure.name)
+        
+        stmt = stmt.where(UnitOfMeasure.applicable_to == item.item_type)
+            
+        rows = s.execute(stmt).mappings().all()
+        return [dict(r) for r in rows]
 
 
-def unit_list() -> List[Dict[str, Any]]:
+def unit_list_all() -> List[Dict[str, Any]]:
     """
     Возвращает список всех единиц измерения.
     """
@@ -30,12 +38,27 @@ def unit_list() -> List[Dict[str, Any]]:
         ).mappings().all()
         return [dict(row) for row in rows]
 
+def unit_list_applicable(applicable_to = ITEM_TYPES[0]):
+    """
+    Возвращает список всех доступных единиц измерения.
+    """
+    with get_session() as s:
+        rows = s.execute(
+            select(UnitOfMeasure.id, 
+                   UnitOfMeasure.name, 
+                   UnitOfMeasure.ratio_to_base, 
+                   UnitOfMeasure.weight, 
+                   UnitOfMeasure.volume).order_by(UnitOfMeasure.name)
+            .where(UnitOfMeasure.applicable_to == applicable_to)
+        ).mappings().all()
+        return [dict(row) for row in rows]
 
 def unit_add(
     name: str,
     ratio_to_base: float,
     weight: Optional[float] = None,
-    volume: Optional[float] = None
+    volume: Optional[float] = None,
+    applicable_to = ITEM_TYPES[0]
 ) -> int:
     """
     Добавляет новую единицу измерения.
@@ -44,6 +67,7 @@ def unit_add(
     :param ratio_to_base: Сколько базовых единиц в этой единице (например, 50000 для коробки сахара в граммах)
     :param weight: Вес одной единицы (в кг, опционально)
     :param volume: Объём одной единицы (в литрах, опционально)
+    :param applicable_to: тип объекта.
     :return: ID новой записи
     """
     with get_session() as s:
@@ -51,7 +75,8 @@ def unit_add(
             name=name,
             ratio_to_base=ratio_to_base,
             weight=weight,
-            volume=volume
+            volume=volume,
+            applicable_to=applicable_to
         )
         s.add(u)
         s.commit()

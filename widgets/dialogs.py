@@ -13,8 +13,8 @@ from db_scripts import (
 )
 from db_scripts import unit_list_for_item, unit_get
 from db_scripts.db_items import item_buy_price_get
-from db_scripts.db_units import unit_list
-from enumerates import CONTRAGENT_TYPES, DOC_TYPES
+from db_scripts.db_units import unit_list, unit_list_applicable
+from enumerates import CONTRAGENT_TYPES, DOC_TYPES, ITEM_TYPES
 
 
 class ItemDialog(tk.Toplevel):
@@ -26,15 +26,35 @@ class ItemDialog(tk.Toplevel):
         self.image = None
         self.image_label = None
 
-        labels = ("Название", "Категория")
+        labels = ("Название", "Категория", "Тип товара")
         self.entries = {}
         for i, lbl in enumerate(labels):
-            ttk.Label(self, text=lbl).grid(
-                row=i, column=0, sticky=tk.W, padx=6, pady=4)
-            e = ttk.Entry(self)
-            e.grid(row=i, column=1, sticky=tk.EW, padx=6)
-            key = lbl.lower().replace(' ', '_')
-            self.entries[key] = e
+            ttk.Label(self, text=lbl).grid(row=i, column=0, sticky=tk.W, padx=6, pady=4)
+            if lbl == "Тип товара":
+                cb = ttk.Combobox(self, values=ITEM_TYPES, state="readonly")
+                cb.grid(row=i, column=1, sticky=tk.EW, padx=6)
+                cb.current(0)
+                self.entries['item_type'] = cb
+            else:
+                e = ttk.Entry(self)
+                e.grid(row=i, column=1, sticky=tk.EW, padx=6)
+                key = lbl.lower().replace(' ', '_')
+                self.entries[key] = e
+
+        # Ниже — выбор ЕИ (базовая, хранения, отчётов)
+        ttk.Label(self, text="Базовая ЕИ").grid(row=len(labels), column=0, sticky=tk.W, padx=6, pady=4)
+        self.cb_base = ttk.Combobox(self, state="readonly")
+        self.cb_base.grid(row=len(labels), column=1, sticky=tk.EW, padx=6)
+
+        ttk.Label(self, text="ЕИ хранения").grid(row=len(labels)+1, column=0, sticky=tk.W, padx=6, pady=4)
+        self.cb_storage = ttk.Combobox(self, state="readonly")
+        self.cb_storage.grid(row=len(labels)+1, column=1, sticky=tk.EW, padx=6)
+
+        ttk.Label(self, text="ЕИ отчётов").grid(row=len(labels)+2, column=0, sticky=tk.W, padx=6, pady=4)
+        self.cb_report = ttk.Combobox(self, state="readonly")
+        self.cb_report.grid(row=len(labels)+2, column=1, sticky=tk.EW, padx=6)
+
+        self.update_mesurement_list()
 
         # картинка
         img_row = len(labels)
@@ -120,13 +140,28 @@ class ItemDialog(tk.Toplevel):
         category = self.entries['категория'].get().strip() or None
 
         self.res = {
-            'name': name,
-            'category': category,
-            # 'buy_price': buy_price,
-            'image': self.image_bytes
+        'name': name,
+        'category': category,
+        'item_type': self.entries['item_type'].get(),
+        'base_unit_id': self.unit_map[self.cb_base.get()],
+        'storage_unit_id': self.unit_map[self.cb_storage.get()],
+        'report_unit_id': self.unit_map[self.cb_report.get()],
+        'image': self.image_bytes
         }
         self.destroy()
 
+    def update_mesurament_list(self):
+        # Загрузка списка ЕИ
+        units = unit_list_applicable()
+        self.unit_map = {u['name']: u['id'] for u in units}
+        unit_names = list(self.unit_map.keys())
+        self.cb_base['values'] = unit_names
+        self.cb_storage['values'] = unit_names
+        self.cb_report['values'] = unit_names
+        if units:
+            self.cb_base.current(0)
+            self.cb_storage.current(0)
+            self.cb_report.current(0)
 
 class SalePriceDialog(tk.Toplevel):
     def __init__(self, master, price_id=None, on_save=None):
@@ -618,7 +653,7 @@ class DocRowDialog(tk.Toplevel):
         item_id = self.item_map[item_name]
 
 
-        units = unit_list()
+        units = unit_list_for_item(item_id)
         
         # Обновляем выпадающий список ЕИ
         self.unit_map = {u['name']: u['id'] for u in units}
