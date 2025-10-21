@@ -24,10 +24,13 @@ from .db_sale_prices import (
 
 from .db_users import user_add, user_check
 
-# --- Утилиты (если есть) ---
 from .db_session import get_session, engine
 
 from .db_sales_report import get_sales_by_seller
+
+from .db_production import production_post, production_save_head, production_save_lines
+
+from .db_units import unit_list, unit_add, unit_get, unit_update, unit_delete, unit_list_for_item
 
 __all__ = [
     # Items
@@ -50,4 +53,6 @@ __all__ = [
     'get_session', 'engine',
     #Sale Report
     "get_sales_by_seller",
+    "production_post", "production_save_head", "production_save_lines"
+
 ]

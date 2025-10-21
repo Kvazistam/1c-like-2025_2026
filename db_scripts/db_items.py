@@ -9,19 +9,28 @@ from Models import *
 from db_scripts.db_session import get_session
 
 # --- Items ---
+
+
 def item_list() -> List[Dict[str, Any]]:
     with get_session() as s:
         rows = s.execute(select(Item)).scalars().all()
         return [r.__dict__ for r in rows]
 
-def item_add(name: str, category: Optional[str],
-             buy_price: float = None, image: Optional[bytes] = None) -> int:
+
+def item_add(name: str, category: Optional[str], buy_price: float = None, image: Optional[bytes] = None, base_unit_id: int = None, storage_unit_id: int = None) -> int:
     with get_session() as s:
-        it = Item(name=name, category=category,
-                  buy_price=buy_price, image=image)  
+        it = Item(
+            name=name,
+            category=category,
+            buy_price=buy_price or 0,
+            image=image,
+            base_unit_id=base_unit_id or 1,      
+            storage_unit_id=storage_unit_id or base_unit_id or 1
+        )
         s.add(it)
         s.commit()
         return it.id
+
 
 def item_update(item_id: int, name: str, category: Optional[str], buy_price: float = None, image: Optional[bytes] = None) -> None:
     with get_session() as s:
@@ -33,6 +42,7 @@ def item_update(item_id: int, name: str, category: Optional[str], buy_price: flo
                 it.image = image
             s.commit()
 
+
 def item_delete(item_id: int) -> None:
     with get_session() as s:
         it = s.get(Item, item_id)
@@ -40,13 +50,14 @@ def item_delete(item_id: int) -> None:
             s.delete(it)
             s.commit()
 
+
 def item_get(item_id):
     with get_session() as s:
         item = s.get(Item, item_id)
         return item
-        
+
+
 def item_buy_price_get(item_id):
     with get_session() as s:
         res = s.get(Item, item_id)
     return res.buy_price
-

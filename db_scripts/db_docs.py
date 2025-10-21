@@ -63,6 +63,8 @@ def doc_get(doc_id: int) -> Optional[Doc]:
             select(Doc)
             .options(
                 selectinload(Doc.lines).selectinload(DocsTable.item),
+                selectinload(Doc.lines)
+                .selectinload(DocsTable.unit),
                 selectinload(Doc.warehouse),
                 selectinload(Doc.contragent)
             )
@@ -83,12 +85,15 @@ def doc_delete(doc_id: int) -> None:
 def doc_save_table(doc_id: int, rows: List[Dict[str, Any]]) -> None:
     """rows = [{'item_id': int, 'qty': float, 'price': float}, ...]"""
     with get_session() as s:
-        # удалим старые строки
         s.execute(delete(DocsTable).where(DocsTable.doc_id == doc_id))
-        # добавим новые
         for r in rows:
-            line = DocsTable(doc_id=doc_id, item_id=r['item_id'],
-                             qty=r['qty'], price=r['price'])
+            line = DocsTable(
+                doc_id=doc_id,
+                item_id=r['item_id'],
+                unit_id=r['unit_id'],  
+                price=r['price'],
+                qty=r['qty']
+            )
             s.add(line)
         s.commit()
   

@@ -42,11 +42,13 @@ def stock_movements(warehouse_id: Optional[int] = None,
                    Warehouse.name.label('warehouse'),
                    Item.name.label('item'),
                    Doc.doc_type,
-                   Contragent.name.label('contragent'))
+                   Contragent.name.label('contragent'),
+                   UnitOfMeasure.name.label('base_unit'))
             .select_from(Stock)
             .join(Warehouse, Stock.warehouse_id == Warehouse.id)
             .join(Item, Stock.item_id == Item.id)
             .join(Doc, Stock.doc_id == Doc.id)
+            .join(UnitOfMeasure, Item.base_unit_id == UnitOfMeasure.id)
             .outerjoin(Contragent, Doc.contragent_id == Contragent.id)
             .where(Doc.posted == True)
             .order_by(Stock.date.desc(), Stock.id.desc())

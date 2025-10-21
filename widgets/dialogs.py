@@ -11,8 +11,9 @@ from db_scripts import (
     item_list, warehouse_list, doc_save_head, doc_save_table, doc_get, doc_post, doc_unpost,
     contragent_list_filter, contragent_get_id, add_bonus, spend_bonus, get_bonus_balance
 )
-
+from db_scripts import unit_list_for_item, unit_get
 from db_scripts.db_items import item_buy_price_get
+from db_scripts.db_units import unit_list
 from enumerates import CONTRAGENT_TYPES, DOC_TYPES
 
 
@@ -306,7 +307,7 @@ class DocDialog(tk.Toplevel):
     def _build_table(self):
         mid = ttk.Frame(self)
         mid.pack(fill=tk.BOTH, expand=1, padx=6, pady=6)
-        cols = ('Товар', 'Количество', 'Цена', 'Сумма')
+        cols = ('Товар', 'Количество', 'Ед. изм.', 'Цена', 'Сумма')
         self.tv = ttk.Treeview(mid, columns=cols, show='headings')
         for c in cols:
             self.tv.heading(c, text=c)
@@ -395,9 +396,10 @@ class DocDialog(tk.Toplevel):
             self.tv.insert('', 'end', values=(
                 d.res['item_name'],
                 d.res['qty'],
+                d.res['unit_name'],  
                 d.res['price'],
                 sm
-            ), tags=(d.res['item_id'],))
+            ), tags=(d.res['item_id'], d.res['unit_id']))
             self._update_total()
 
     def _show_context_menu(self, event):
@@ -421,7 +423,7 @@ class DocDialog(tk.Toplevel):
         item_id = int(tags[0])
         item_name = values[0]
         qty = float(values[1])
-        price = float(values[2])
+        price = float(values[3])
 
         # Открываем диалог с предзаполненными данными
         current_date = self.widgets['date'].get_date()
@@ -441,7 +443,7 @@ class DocDialog(tk.Toplevel):
         if d.res:
             sm = d.res['qty'] * d.res['price']
             self.tv.item(sel[0], values=(
-                d.res['item_name'], d.res['qty'], d.res['price'], sm), tags=(d.res['item_id'],))
+                d.res['item_name'], d.res['qty'], d.res["unit_name"], d.res['price'], sm), tags=(d.res['item_id'], d.res['unit_id']))
             self._update_total()
 
     def _delete_row(self):
@@ -476,8 +478,8 @@ class DocDialog(tk.Toplevel):
             self._on_contragent_select()
         for line in d.lines:
             sm = line.qty * line.price
-            self.tv.insert('', 'end', values=(line.item.name, line.qty, line.price, sm),
-                           tags=(line.item_id,))
+            self.tv.insert('', 'end', values=(line.item.name, line.qty, line.unit.name, line.price, sm),
+                           tags=(line.item_id, line.unit_id))
         self._update_total()
 
     def _save(self):
@@ -503,9 +505,10 @@ class DocDialog(tk.Toplevel):
         rows = []
         for it in self.tv.get_children():
             vals = self.tv.item(it)['values']
-            item_id = int(self.tv.item(it)['tags'][0])
-            qty, price = float(vals[1]), float(vals[2])
-            rows.append({'item_id': item_id, 'qty': qty, 'price': price})
+            tags = self.tv.item(it)['tags']
+            item_id = int(tags[0])
+            qty, price = float(vals[1]), float(vals[3])
+            rows.append({'item_id': item_id, 'qty': qty, 'unit_id': int(tags[1]),  'price': price})            
 
         # Обновляем шапку с бонусами
         bonus_mode = self.bonus_mode.get() if self.doc_type == 'расход' else None
@@ -577,31 +580,80 @@ class DocRowDialog(tk.Toplevel):
         self.e_price.grid(row=2, column=1, padx=6)
         self.e_price.insert(0, '0')
 
+        # После выбора товара — выбор ЕИ
+        ttk.Label(self, text='Ед. изм.').grid(row=3, column=0, sticky=tk.W, padx=6, pady=4)
+        self.cb_unit = ttk.Combobox(self, state='readonly', width=20)
+        self.cb_unit.grid(row=3, column=1, padx=6)
+        
         # Подставляем цену и блокируем поле, если это расход
         self.cb.bind('<<ComboboxSelected>>', self._on_item_select)
         self._on_item_select()  # инициализация при открытии
 
         ttk.Button(self, text='OK', command=self._ok).grid(
-            row=3, column=1, pady=10)
+            row=4, column=1, pady=10)
+        
+        
+
+    # def _on_item_select(self, event=None):
+    #     item_name = self.cb.get()
+    #     item_id = self.item_map[item_name]
+    #     if not item_name:
+    #         return
+    #     if self.doc_type == DOC_TYPES[1]:
+    #         price = sale_price_get_date(item_id, self.doc_date)
+    #         self.e_price.config(state='normal')
+    #         self.e_price.delete(0, 'end')
+    #         self.e_price.insert(0, f"{price:.2f}")
+    #         self.e_price.config(state='readonly')
+    #     else:
+    #         self.e_price.config(state='normal')
+    #         self.e_price.delete(0, 'end')
+    #         self.e_price.insert(0, 0)
 
     def _on_item_select(self, event=None):
         item_name = self.cb.get()
-        item_id = self.item_map[item_name]
         if not item_name:
             return
-        if self.doc_type == DOC_TYPES[1]:
-            price = sale_price_get_date(item_id, self.doc_date)
+
+        item_id = self.item_map[item_name]
+
+
+        units = unit_list()
+        
+        # Обновляем выпадающий список ЕИ
+        self.unit_map = {u['name']: u['id'] for u in units}
+        self.cb_unit['values'] = list(self.unit_map.keys())
+        if units:
+            self.cb_unit.current(0)
+            selected_unit_id = self.unit_map[units[0]['name']]
+        else:
+            selected_unit_id = None
+
+        if self.doc_type == DOC_TYPES[1]:  
+            # Получаем базовую розничную цену (за базовую единицу товара)
+            base_price = sale_price_get_date(item_id, self.doc_date)
+            
+            if selected_unit_id:
+                # Получаем коэффициент ЕИ
+                unit = unit_get(selected_unit_id)
+                # Цена за выбранную ЕИ = базовая цена * ratio_to_base
+                price = base_price * unit['ratio_to_base']
+            else:
+                price = base_price
+
             self.e_price.config(state='normal')
             self.e_price.delete(0, 'end')
             self.e_price.insert(0, f"{price:.2f}")
             self.e_price.config(state='readonly')
-        else:
+        else:  # приход
+            # Для прихода можно брать buy_price или оставить 0
             self.e_price.config(state='normal')
             self.e_price.delete(0, 'end')
-            self.e_price.insert(0, 0)
+            self.e_price.insert(0, '0')
 
     def _ok(self):
         name = self.cb.get()
+        unit_name = self.cb_unit.get()
         if not name:
             messagebox.showerror("Ошибка", "Выберите товар", parent=self)
             return
@@ -612,10 +664,12 @@ class DocRowDialog(tk.Toplevel):
             messagebox.showerror(
                 "Ошибка", "Некорректное количество или цена", parent=self)
             return
-
+        
         self.res = {
             'item_id': self.item_map[name],
             'item_name': name,
+            'unit_id': self.unit_map[unit_name],  
+            'unit_name': unit_name,              
             'qty': qty,
             'price': price
         }

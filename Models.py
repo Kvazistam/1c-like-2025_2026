@@ -47,7 +47,14 @@ class Item(Base):
     category: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     buy_price: Mapped[float] = mapped_column(Float, default=0)
     image: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
+    
+    base_unit_id: Mapped[int] = mapped_column(ForeignKey("units_of_measure.id"))  # Базовая ЕИ
+    storage_unit_id: Mapped[Optional[int]] = mapped_column(ForeignKey("units_of_measure.id"))  # Для остатков
+    report_unit_id: Mapped[Optional[int]] = mapped_column(ForeignKey("units_of_measure.id"))  # Для отчётов
 
+    base_unit: Mapped[UnitOfMeasure] = relationship(foreign_keys=[base_unit_id])
+    storage_unit: Mapped[Optional[UnitOfMeasure]] = relationship(foreign_keys=[storage_unit_id])
+    report_unit: Mapped[Optional[UnitOfMeasure]] = relationship(foreign_keys=[report_unit_id])
     lines: Mapped[List["DocsTable"]] = relationship(back_populates="item")
 
 
@@ -100,7 +107,9 @@ class DocsTable(Base):
     item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
     qty: Mapped[float] = mapped_column(Float)
     price: Mapped[float] = mapped_column(Float)
+    unit_id: Mapped[int] = mapped_column(ForeignKey("units_of_measure.id"))  
     
+    unit: Mapped["UnitOfMeasure"] = relationship()
     doc: Mapped["Doc"] = relationship(back_populates="lines")
     item: Mapped["Item"] = relationship(back_populates="lines")
 
@@ -147,4 +156,61 @@ class BonusBalance(Base):
 
     contragent: Mapped["Contragent"] = relationship()
     
+   
+   
+    
+class UnitOfMeasure(Base):
+    __tablename__ = "units_of_measure"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, unique=True)  # "Коробка", "Грамм", "Штука"
+    base_unit_id: Mapped[Optional[int]] = mapped_column(ForeignKey("units_of_measure.id"), nullable=True)
+    ratio_to_base: Mapped[float] = mapped_column(Float, default=1.0)  # Сколько базовых в этой единице
+    weight: Mapped[Optional[float]] = mapped_column(Float)  # Вес единицы (кг)
+    volume: Mapped[Optional[float]] = mapped_column(Float)  # Объём (л)
+
+    # Связь с базовой единицей (сама на себя)
+    base_unit: Mapped["UnitOfMeasure"] = relationship(remote_side="UnitOfMeasure.id", back_populates="derived_units")
+    derived_units: Mapped[List["UnitOfMeasure"]] = relationship(back_populates="base_unit")
+    
+    
+    
+class ProductionDoc(Base):
+    __tablename__ = "production_docs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    date: Mapped[date] = mapped_column(Date)
+    warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
+    comment: Mapped[Optional[str]] = mapped_column(String)
+    posted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    warehouse: Mapped[Warehouse] = relationship()
+    input_lines: Mapped[List["ProductionInput"]] = relationship(cascade="all, delete-orphan")
+    output_lines: Mapped[List["ProductionOutput"]] = relationship(cascade="all, delete-orphan")
+
+
+class ProductionInput(Base):
+    __tablename__ = "production_input"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    doc_id: Mapped[int] = mapped_column(ForeignKey("production_docs.id"))
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
+    unit_id: Mapped[int] = mapped_column(ForeignKey("units_of_measure.id"))
+    qty: Mapped[float] = mapped_column(Float)
+
+    doc: Mapped[ProductionDoc] = relationship(back_populates="input_lines")
+    item: Mapped[Item] = relationship()
+    unit: Mapped[UnitOfMeasure] = relationship()
+
+
+class ProductionOutput(Base):
+    __tablename__ = "production_output"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    doc_id: Mapped[int] = mapped_column(ForeignKey("production_docs.id"))
+    item_id: Mapped[int] = mapped_column(ForeignKey("items.id"))
+    unit_id: Mapped[int] = mapped_column(ForeignKey("units_of_measure.id"))
+    qty: Mapped[float] = mapped_column(Float)
+
+    doc: Mapped[ProductionDoc] = relationship(back_populates="output_lines")
+    item: Mapped[Item] = relationship()
+    unit: Mapped[UnitOfMeasure] = relationship()
     

@@ -1,17 +1,21 @@
 """
 init_db.py – миграция и демо-данные
-(ORM SQLAlchemy 2.0, регистр цен item_prices)
+(ORM SQLAlchemy 2.0, регистр цен item_prices, единицы измерения, производство)
 """
 
 from datetime import date
 
 from sqlalchemy import select
-from Models import Base, Item, SalePrice
+from Models import (
+    Base, Item, SalePrice, UnitOfMeasure,
+)
 from db_scripts import (
     get_session, sale_price_set,
-    warehouse_add, contragent_add, item_add, user_add, engine
+    warehouse_add, contragent_add, item_add, user_add, engine,
+    unit_add 
 )
 from enumerates import CONTRAGENT_TYPES
+
 
 DEMO = {
     "warehouses": ["Основной склад", "Резервный склад"],
@@ -20,55 +24,77 @@ DEMO = {
         ("АнимеДистриб", CONTRAGENT_TYPES[0]),
         ("Розничный покупатель", CONTRAGENT_TYPES[1]),
     ],
+    "units": [  
+        ("Штука", 1.0),
+        ("Коробка", 20.0),  
+        ("Грамм", 1.0),
+        ("Килограмм", 1000.0),
+        ("Пакет 1 кг", 1000.0),
+    ],
     "items": [
-        ( "Rem Figma Re:Zero", "Figma", 2200, 3500),
-        ( "Hatsune Miku Nendoroid", "Nendoroid", 1500, 2800),
-        ("Levi Pop Up Parade", "Pop Up Parade", 1800, 3000),
+        # (name, category, buy_price, sell_price, base_unit_name)
+        ("Rem Figma Re:Zero", "Figma", 2200, 3500, "Штука"),
+        ("Hatsune Miku Nendoroid", "Nendoroid", 1500, 2800, "Штука"),
+        ("Levi Pop Up Parade", "Pop Up Parade", 1800, 3000, "Штука"),
+        ("Сахар", "Сыпучие", 50, 100, "Грамм"),  # базовая ЕИ — граммы
     ],
     "users": [
-        ("admin",  "", "admin"),
-        ("buyer",  "",    "buy"),
-        ("seller", "",    "sell"),
-        ("","","admin")
+        ("admin", "", "admin"),
+        ("buyer", "", "buy"),
+        ("seller", "", "sell"),
+        ("", "", "admin")
     ],
 }
 
+
 def migrate_with_price_register():
     """Создаёт все таблицы + переносит sell_price в регистр."""
-    Base.metadata.create_all(engine)          # создаст и item_prices
+    Base.metadata.create_all(engine)
 
     with get_session() as s:
-        # если в items ещё осталась колонка sell_price – переносим
+        
         if hasattr(Item, 'sell_price'):
             for it in s.scalars(select(Item)).all():
-                # первая цена «с начала времен»
-                s.add(SalePrice(item_id=it.id, price=it.sell_price,
-                                date_from=date(2000, 1, 1)))
+                s.add(SalePrice(item_id=it.id, price=it.sell_price, date_from=date(2000, 1, 1)))
             s.commit()
-            # ====== SQLite не умеет ALTER DROP, поэтому просто игнорируем поле ======
-            # в модели мы его уже удалили, новые БД его не создадут
-            print("Старые sell_price перенесены в регистр item_prices")
+            print("Старые sell_price перенесены в регистр SalePrice")
+
 
 def main():
     migrate_with_price_register()
 
-    # ------- демо-данные -------
+    # ------- 1. Добавляем единицы измерения -------
+    unit_map = {}
+    for name, ratio in DEMO["units"]:
+        unit_id = unit_add(name, ratio)
+        unit_map[name] = unit_id
+
+    # ------- 2. Склады и контрагенты -------
     for w in DEMO["warehouses"]:
         warehouse_add(w)
 
     for name, tp in DEMO["contragents"]:
         contragent_add(name, tp)
 
-    # товары + цены
-    for name, cat, buy, sell in DEMO["items"]:
-        # item_add теперь сам создаёт запись в ItemPrice
-        it_id = item_add(name, cat, buy)
-        sale_price_set(it_id, sell, date.today()) 
+    # ------- 3. Товары + цены + привязка к ЕИ -------
+    for name, cat, buy, sell, base_unit_name in DEMO["items"]:
+        base_unit_id = unit_map[base_unit_name]
+        # item_add теперь принимает base_unit_id
+        it_id = item_add(
+            name=name,
+            category=cat,
+            buy_price=buy,
+            base_unit_id=base_unit_id,
+            storage_unit_id=base_unit_id  # можно указать отдельно
+        )
+        sale_price_set(it_id, sell, date.today())
 
+    # ------- 4. Пользователи -------
     for u, p, r in DEMO["users"]:
-        user_add(u, p, r)
+        user_add(u, p, r)  
 
-    print("База готова, демо-данные добавлены.")
+    print("✅ База готова: демо-данные, ЕИ, товары, цены")
+
 
 if __name__ == "__main__":
     main()
