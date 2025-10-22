@@ -91,7 +91,7 @@ def doc_save_table(doc_id: int, rows: List[Dict[str, Any]]) -> None:
                 doc_id=doc_id,
                 item_id=r['item_id'],
                 unit_id=r['unit_id'],  
-                price=r['price'],
+                price=r.get('price', 0),
                 qty=r['qty']
             )
             s.add(line)
@@ -108,7 +108,7 @@ def doc_post(doc_id: int) -> None:
         if d.posted:
             raise ValueError("Документ уже проведён")
 
-        if d.doc_type == DOC_TYPES[1]:
+        if d.doc_type in  (DOC_TYPES[1], DOC_TYPES[3]):
             for line in d.lines:
                 avail = stock_on_date(line.item_id, d.warehouse_id, d.date)
                 if avail < line.qty:
@@ -118,7 +118,7 @@ def doc_post(doc_id: int) -> None:
                         f"(доступно {avail:.2f}, требуется {line.qty:.2f})"
                     )
         
-        sign = 1 if d.doc_type == DOC_TYPES[0] else -1
+        sign = 1 if d.doc_type in  (DOC_TYPES[0], DOC_TYPES[2]) else -1
 
         for line in d.lines:
             # --------------- ключевое изменение ---------------

@@ -74,11 +74,14 @@ def stock_movements(warehouse_id: Optional[int] = None,
             else:
                 display_qty = base_qty
                 display_unit = base_unit.name
-
+            contragent =  r['contragent']
+            if r['doc_type'] == 'production': 
+                contragent = None
+            print(r['doc_type'])
             result.append({
                 'date': r['date'],
                 'warehouse': r['warehouse'],
-                'contragent': r['contragent'],
+                'contragent': contragent,
                 'item': r['item'],
                 'qty': display_qty,
                 'unit': display_unit

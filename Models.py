@@ -197,7 +197,11 @@ class ProductionDoc(Base):
     warehouse_id: Mapped[int] = mapped_column(ForeignKey("warehouses.id"))
     comment: Mapped[Optional[str]] = mapped_column(String)
     posted: Mapped[bool] = mapped_column(Boolean, default=False)
+    in_doc_id: Mapped[int] = mapped_column(ForeignKey("docs.id"), unique=True, nullable=True)
+    out_doc_id: Mapped[int] = mapped_column(ForeignKey("docs.id"), unique=True,  nullable=True)
 
+    in_doc: Mapped[Doc] = relationship("Doc", foreign_keys=[in_doc_id]  )
+    out_doc: Mapped[Doc] = relationship("Doc",  foreign_keys=[out_doc_id])
     warehouse: Mapped[Warehouse] = relationship()
     input_lines: Mapped[List["ProductionInput"]] = relationship(cascade="all, delete-orphan")
     output_lines: Mapped[List["ProductionOutput"]] = relationship(cascade="all, delete-orphan")

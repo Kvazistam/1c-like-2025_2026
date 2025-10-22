@@ -1,6 +1,8 @@
 from typing import Any, Dict, List, Optional
 from sqlalchemy import select, delete
-from Models import ProductionDoc, ProductionInput, ProductionOutput, Stock, Warehouse
+from Models import Doc, ProductionDoc, ProductionInput, ProductionOutput, Stock, Warehouse
+from db_scripts.db_docs import doc_save_head, doc_save_table
+from enumerates import DOC_TYPES
 from .db_session import get_session
 from sqlalchemy.orm import selectinload
 def production_get(doc_id: int) -> Optional[ProductionDoc]:
@@ -36,7 +38,8 @@ def production_unpost(doc_id: int) -> None:
             return
 
         # Удаляем движения по складу
-        s.execute(delete(Stock).where(Stock.doc_id == doc_id))
+        s.execute(delete(Stock).where(Stock.doc_id == d.out_doc_id))
+        s.execute(delete(Stock).where(Stock.doc_id == d.in_doc_id))
 
         d.posted = False
         s.commit()
@@ -69,38 +72,48 @@ def production_save_lines(doc_id, input_rows, output_rows):
             ))
         s.commit()
 
+from .db_docs import doc_post, doc_save_head
+from Models import ProductionDoc, Stock
+
 def production_post(doc_id):
     with get_session() as s:
         d = s.get(ProductionDoc, doc_id)
-        if not d or d.posted:
-            raise ValueError("Документ не найден или уже проведён")
-        
-        # Списание материалов (input)
-        for line in d.input_lines:
-            base_qty = line.qty * line.unit.ratio_to_base
-            st = Stock(
-                item_id=line.item_id,
-                warehouse_id=d.warehouse_id,
-                qty=-base_qty,  # списание
-                doc_id=doc_id,
-                date=d.date
-            )
-            s.add(st)
-        
-        # Приход готовой продукции (output)
-        for line in d.output_lines:
-            base_qty = line.qty * line.unit.ratio_to_base
-            st = Stock(
-                item_id=line.item_id,
-                warehouse_id=d.warehouse_id,
-                qty=base_qty,  # приход
-                doc_id=doc_id,
-                date=d.date
-            )
-            s.add(st)
-        
+        if not d:
+            raise ValueError("Документ производства не найден")
+        if d.posted:
+            raise ValueError("Документ уже проведён")
+
+        # === 1. Создаём документы "расход" и "приход" ===
+        doc_out_id = doc_save_head(
+            doc_type=DOC_TYPES[2],  # приход материалов
+            date_=d.date,
+            warehouse_id=d.warehouse_id,
+            contragent_id=None,
+            comment=f"Производство #{d.id} (списание материалов)"
+        )
+
+        doc_in_id = doc_save_head(
+            doc_type=DOC_TYPES[3],  # расход готовой продукции
+            date_=d.date,
+            warehouse_id=d.warehouse_id,
+            contragent_id=None,
+            comment=f"Производство #{d.id} (приход готовой продукции)"
+        )
+        rows_dict_in = [r.__dict__ for r in d.input_lines]
+        rows_dict_out = [r.__dict__ for r in d.output_lines]
+        doc_save_table(doc_in_id, rows_dict_in)
+        doc_save_table(doc_out_id, rows_dict_out)
+        doc_post(doc_in_id)
+        doc_post(doc_out_id)
+    
+        # === 3. Отмечаем производство как проведённое ===
+        d.out_doc_id = doc_out_id
+        d.in_doc_id = doc_in_id
         d.posted = True
         s.commit()
+
+        return {"doc_in_id": doc_in_id, "doc_out_id": doc_out_id}
+
         
 
 def production_list() -> List[Dict[str, Any]]:

@@ -453,7 +453,7 @@ class DocDialog(tk.Toplevel):
         total = 0.0
         for item in self.tv.get_children():
             try:
-                amount = float(self.tv.item(item)['values'][3])
+                amount = float(self.tv.item(item)['values'][4])
                 total += amount
             except (IndexError, ValueError):
                 continue
@@ -509,6 +509,7 @@ class DocDialog(tk.Toplevel):
 
         item_id = int(tags[0])
         item_name = values[0]
+        unit_name = tags[1]
         qty = float(values[1])
         price = float(values[3])
 
@@ -517,11 +518,14 @@ class DocDialog(tk.Toplevel):
         d = DocRowDialog(self, doc_type=self.doc_type, doc_date=current_date)
         # Предзаполняем поля
         d.cb.set(item_name)
+        d.cb_unit.set(unit_name)
+        d._on_item_select()
         d.e_qty.delete(0, tk.END)
         d.e_qty.insert(0, str(qty))
         d.e_price.config(state='normal')
         d.e_price.delete(0, tk.END)
         d.e_price.insert(0, str(price))
+        
         # расход — делаем readonly после установки
         if self.doc_type == DOC_TYPES[1]:
             d.e_price.config(state='readonly')
@@ -530,7 +534,7 @@ class DocDialog(tk.Toplevel):
         if d.res:
             sm = d.res['qty'] * d.res['price']
             self.tv.item(sel[0], values=(
-                d.res['item_name'], d.res['qty'], d.res["unit_name"], d.res['price'], sm), tags=(d.res['item_id'], d.res['unit_id']))
+                d.res['item_name'], d.res['qty'], d.res["unit_name"], d.res['price'], sm), tags=(d.res['item_id'], d.res['unit_id'], d.res['unit_name']))
             self._update_total()
 
     def _delete_row(self):
@@ -677,6 +681,7 @@ class DocRowDialog(tk.Toplevel):
         
         # Подставляем цену и блокируем поле, если это расход
         self.cb.bind('<<ComboboxSelected>>', self._on_item_select)
+        self.cb_unit.bind('<<ComboboxSelected>>', self._on_unit_select)
         self._on_item_select()  # инициализация при открытии
 
         ttk.Button(self, text='OK', command=self._ok).grid(
@@ -706,34 +711,32 @@ class DocRowDialog(tk.Toplevel):
             return
 
         item_id = self.item_map[item_name]
-
-
         units = unit_list_for_item(item_id)
-        
-        # Обновляем выпадающий список ЕИ
         self.unit_map = {u['name']: u['id'] for u in units}
         self.cb_unit['values'] = list(self.unit_map.keys())
+        
         if units:
             self.cb_unit.current(0)
-            selected_unit_id = self.unit_map[units[0]['name']]
+            # selected_unit_id = self.unit_map[units[0]['name']]
+            self._on_unit_select()
         else:
             selected_unit_id = None
 
         if self.doc_type == DOC_TYPES[1]:  
-            # Получаем базовую розничную цену (за базовую единицу товара)
-            base_price = sale_price_get_date(item_id, self.doc_date)
+            # # Получаем базовую розничную цену (за базовую единицу товара)
+            # base_price = sale_price_get_date(item_id, self.doc_date)
             
-            if selected_unit_id:
-                # Получаем коэффициент ЕИ
-                unit = unit_get(selected_unit_id)
-                # Цена за выбранную ЕИ = базовая цена * ratio_to_base
-                price = base_price * unit['ratio_to_base']
-            else:
-                price = base_price
+            # if selected_unit_id:
+            #     # Получаем коэффициент ЕИ
+            #     unit = unit_get(selected_unit_id)
+            #     # Цена за выбранную ЕИ = базовая цена * ratio_to_base
+            #     price = base_price * unit['ratio_to_base']
+            # else:
+            #     price = base_price
 
             self.e_price.config(state='normal')
             self.e_price.delete(0, 'end')
-            self.e_price.insert(0, f"{price:.2f}")
+            # self.e_price.insert(0, f"{price:.2f}")
             self.e_price.config(state='readonly')
         else:  # приход
             # Для прихода можно брать buy_price или оставить 0
@@ -741,6 +744,35 @@ class DocRowDialog(tk.Toplevel):
             self.e_price.delete(0, 'end')
             self.e_price.insert(0, '0')
 
+    def _on_unit_select(self, event=None):
+        """Пересчитывает цену при смене единицы измерения."""
+        if self.doc_type != DOC_TYPES[1]:  # только для расхода
+            return
+
+        item_name = self.cb.get()
+        unit_name = self.cb_unit.get()
+        if not item_name or not unit_name:
+            return
+
+        item_id = self.item_map[item_name]
+        unit_id = self.unit_map[unit_name]
+
+        # Получаем базовую цену
+        base_price = sale_price_get_date(item_id, self.doc_date)
+
+        # Получаем коэффициент ЕИ
+        unit = unit_get(unit_id)
+        ratio = unit['ratio_to_base']
+
+        # Пересчитываем цену
+        price_per_unit = base_price * ratio
+
+        # Обновляем поле цены
+        self.e_price.config(state='normal')
+        self.e_price.delete(0, tk.END)
+        self.e_price.insert(0, f"{price_per_unit:.2f}")
+        self.e_price.config(state='readonly')
+        
     def _ok(self):
         name = self.cb.get()
         unit_name = self.cb_unit.get()
