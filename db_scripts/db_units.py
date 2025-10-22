@@ -121,3 +121,5 @@ def unit_delete(unit_id: int) -> None:
         if u:
             s.delete(u)
             s.commit()
+            
+            

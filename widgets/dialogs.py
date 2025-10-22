@@ -13,7 +13,7 @@ from db_scripts import (
 )
 from db_scripts import unit_list_for_item, unit_get
 from db_scripts.db_items import item_buy_price_get
-from db_scripts.db_units import unit_list, unit_list_applicable
+from db_scripts.db_units import unit_list_for_item, unit_list_applicable
 from enumerates import CONTRAGENT_TYPES, DOC_TYPES, ITEM_TYPES
 
 
@@ -23,8 +23,6 @@ class ItemDialog(tk.Toplevel):
         self.res = None
         self.title("Товар")
         self.geometry("500x700")
-        self.image = None
-        self.image_label = None
 
         labels = ("Название", "Категория", "Тип товара")
         self.entries = {}
@@ -34,6 +32,7 @@ class ItemDialog(tk.Toplevel):
                 cb = ttk.Combobox(self, values=ITEM_TYPES, state="readonly")
                 cb.grid(row=i, column=1, sticky=tk.EW, padx=6)
                 cb.current(0)
+                cb.bind("<<ComboboxSelected>>", self._on_type_change)
                 self.entries['item_type'] = cb
             else:
                 e = ttk.Entry(self)
@@ -41,55 +40,121 @@ class ItemDialog(tk.Toplevel):
                 key = lbl.lower().replace(' ', '_')
                 self.entries[key] = e
 
-        # Ниже — выбор ЕИ (базовая, хранения, отчётов)
-        ttk.Label(self, text="Базовая ЕИ").grid(row=len(labels), column=0, sticky=tk.W, padx=6, pady=4)
-        self.cb_base = ttk.Combobox(self, state="readonly")
-        self.cb_base.grid(row=len(labels), column=1, sticky=tk.EW, padx=6)
+        # Единицы измерения
+        self.unit_rows_start = len(labels)
+        self._build_unit_selector()
 
-        ttk.Label(self, text="ЕИ хранения").grid(row=len(labels)+1, column=0, sticky=tk.W, padx=6, pady=4)
-        self.cb_storage = ttk.Combobox(self, state="readonly")
-        self.cb_storage.grid(row=len(labels)+1, column=1, sticky=tk.EW, padx=6)
+        # Картинка
+        img_row = self.unit_rows_start + 3
+        ttk.Label(self, text="Картинка").grid(row=img_row, column=0, sticky=tk.W, padx=6, pady=4)
+        ttk.Button(self, text="Выбрать...", command=self.pick_image).grid(row=img_row, column=1, sticky=tk.W, padx=6)
 
-        ttk.Label(self, text="ЕИ отчётов").grid(row=len(labels)+2, column=0, sticky=tk.W, padx=6, pady=4)
-        self.cb_report = ttk.Combobox(self, state="readonly")
-        self.cb_report.grid(row=len(labels)+2, column=1, sticky=tk.EW, padx=6)
-
-        self.update_mesurement_list()
-
-        # картинка
-        img_row = len(labels)
-        ttk.Label(self, text="Картинка").grid(
-            row=len(labels), column=0, sticky=tk.W, padx=6, pady=4)
-        ttk.Button(self, text="Выбрать...", command=self.pick_image).grid(
-            row=len(labels), column=1, sticky=tk.W, padx=6)
-
-        # Место для отображения картинки
         self.image_label = tk.Label(self, bg="white", relief="sunken")
-        self.image_label.grid(row=len(labels)+1, column=0,
-                              columnspan=2, sticky="nswe")
+        self.image_label.grid(row=img_row+1, column=0, columnspan=2, sticky="nswe")
         self._show_placeholder()
 
-        # Кнопка сохранения
-        ttk.Button(self, text="Сохранить", command=self.on_save).grid(
-            row=img_row+2, column=0, pady=10, padx=6, sticky='w'
-        )
+        # Кнопка
+        ttk.Button(self, text="Сохранить", command=self.on_save).grid(row=img_row+2, column=0, pady=10, padx=6, sticky='w')
 
         self.columnconfigure(1, weight=1)
         self.rowconfigure(img_row+1, weight=1)
         self.image_bytes = None
 
+        # Загрузка данных
         if item_data:
-            self.entries['название'].insert(0, item_data.get('name', ''))
-            cat = item_data.get('category')
-            if cat:
-                self.entries['категория'].insert(0, cat)
+            self._load_data(item_data)
 
-            if item_data.get('image'):
-                self.image_bytes = item_data['image']
-                self._show_image(self.image_bytes)
-        self.transient(master)        # остаётся поверх master
-        self.grab_set()               # перехватывает весь ввод
-        self.focus_set()              # фокус на этом окне
+        self.transient(master)
+        self.grab_set()
+        self.focus_set()
+
+    def _build_unit_selector(self):
+        self.cb_base = ttk.Combobox(self, state="readonly")
+        self.cb_storage = ttk.Combobox(self, state="readonly")
+        self.cb_report = ttk.Combobox(self, state="readonly")
+
+        ttk.Label(self, text="Базовая ЕИ").grid(row=self.unit_rows_start, column=0, sticky=tk.W, padx=6, pady=4)
+        self.cb_base.grid(row=self.unit_rows_start, column=1, sticky=tk.EW, padx=6)
+
+        ttk.Label(self, text="ЕИ хранения").grid(row=self.unit_rows_start+1, column=0, sticky=tk.W, padx=6, pady=4)
+        self.cb_storage.grid(row=self.unit_rows_start+1, column=1, sticky=tk.EW, padx=6)
+
+        ttk.Label(self, text="ЕИ отчётов").grid(row=self.unit_rows_start+2, column=0, sticky=tk.W, padx=6, pady=4)
+        self.cb_report.grid(row=self.unit_rows_start+2, column=1, sticky=tk.EW, padx=6)
+
+    def _on_type_change(self, event=None):
+        self.update_mesurament_list()
+
+    def update_mesurament_list(self):
+        item_type = self.entries['item_type'].get()
+        units = unit_list_applicable(item_type)
+        self.unit_map = {u['name']: u['id'] for u in units}
+        unit_names = list(self.unit_map.keys()) or [""]
+
+        self.cb_base['values'] = unit_names
+        self.cb_storage['values'] = unit_names
+        self.cb_report['values'] = unit_names
+
+        if unit_names != [""]:
+            self.cb_base.current(0)
+            self.cb_storage.current(0)
+            self.cb_report.current(0)
+
+    def _load_data(self, item_data):
+        self.entries['название'].insert(0, item_data.get('name', ''))
+        cat = item_data.get('category')
+        if cat:
+            self.entries['категория'].insert(0, cat)
+
+        # Тип товара
+        item_type = item_data.get('item_type')
+        if item_type in ITEM_TYPES:
+            self.entries['item_type'].set(item_type)
+            self.update_mesurament_list()
+
+        # ЕИ
+        def set_unit(cb, unit_id):
+            unit = unit_get(unit_id)
+            if unit and unit['name'] in self.unit_map:
+                cb.set(unit['name'])
+
+        set_unit(self.cb_base, item_data.get('base_unit_id'))
+        set_unit(self.cb_storage, item_data.get('storage_unit_id'))
+        set_unit(self.cb_report, item_data.get('report_unit_id'))
+
+        # Картинка
+        if item_data.get('image'):
+            self.image_bytes = item_data['image']
+            self._show_image(self.image_bytes)
+
+    def on_save(self):
+        name = self.entries['название'].get().strip()
+        if not name:
+            messagebox.showerror("Ошибка", "Название обязательно", parent=self)
+            return
+
+        category = self.entries['категория'].get().strip() or None
+        item_type = self.entries['item_type'].get()
+
+        # Проверка ЕИ
+        try:
+            base_id = self.unit_map[self.cb_base.get()]
+            storage_id = self.unit_map[self.cb_storage.get()]
+            report_id = self.unit_map[self.cb_report.get()]
+        except KeyError:
+            messagebox.showerror("Ошибка", "Выберите корректные единицы измерения", parent=self)
+            return
+
+        self.res = {
+            'name': name,
+            'category': category,
+            'item_type': item_type,
+            'base_unit_id': base_id,
+            'storage_unit_id': storage_id,
+            'report_unit_id': report_id,
+            'image': self.image_bytes
+        }
+        self.destroy()
 
     def _show_placeholder(self):
         """Показать заглушку 'Нет изображения'."""
@@ -132,36 +197,23 @@ class ItemDialog(tk.Toplevel):
                 self.image_bytes = None
                 self._show_placeholder()
 
-    def on_save(self):
-        name = self.entries['название'].get().strip()
-        if not name:
-            messagebox.showerror("Ошибка", "Название обязательно", parent=self)
-            return
-        category = self.entries['категория'].get().strip() or None
+    # def on_save(self):
+    #     name = self.entries['название'].get().strip()
+    #     if not name:
+    #         messagebox.showerror("Ошибка", "Название обязательно", parent=self)
+    #         return
+    #     category = self.entries['категория'].get().strip() or None
 
-        self.res = {
-        'name': name,
-        'category': category,
-        'item_type': self.entries['item_type'].get(),
-        'base_unit_id': self.unit_map[self.cb_base.get()],
-        'storage_unit_id': self.unit_map[self.cb_storage.get()],
-        'report_unit_id': self.unit_map[self.cb_report.get()],
-        'image': self.image_bytes
-        }
-        self.destroy()
-
-    def update_mesurament_list(self):
-        # Загрузка списка ЕИ
-        units = unit_list_applicable()
-        self.unit_map = {u['name']: u['id'] for u in units}
-        unit_names = list(self.unit_map.keys())
-        self.cb_base['values'] = unit_names
-        self.cb_storage['values'] = unit_names
-        self.cb_report['values'] = unit_names
-        if units:
-            self.cb_base.current(0)
-            self.cb_storage.current(0)
-            self.cb_report.current(0)
+    #     self.res = {
+    #     'name': name,
+    #     'category': category,
+    #     'item_type': self.entries['item_type'].get(),
+    #     'base_unit_id': self.unit_map[self.cb_base.get()],
+    #     'storage_unit_id': self.unit_map[self.cb_storage.get()],
+    #     'report_unit_id': self.unit_map[self.cb_report.get()],
+    #     'image': self.image_bytes
+    #     }
+    #     self.destroy()
 
 class SalePriceDialog(tk.Toplevel):
     def __init__(self, master, price_id=None, on_save=None):
@@ -542,8 +594,11 @@ class DocDialog(tk.Toplevel):
             vals = self.tv.item(it)['values']
             tags = self.tv.item(it)['tags']
             item_id = int(tags[0])
+            unit_id = int(tags[1])
             qty, price = float(vals[1]), float(vals[3])
-            rows.append({'item_id': item_id, 'qty': qty, 'unit_id': int(tags[1]),  'price': price})            
+            unit = unit_get(unit_id)
+            base_qty = qty * unit['ratio_to_base'] 
+            rows.append({'item_id': item_id, 'qty': base_qty, 'unit_id': unit_id,  'price': price})            
 
         # Обновляем шапку с бонусами
         bonus_mode = self.bonus_mode.get() if self.doc_type == 'расход' else None

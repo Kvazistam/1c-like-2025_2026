@@ -14,7 +14,7 @@ from db_scripts import (
     warehouse_add, contragent_add, item_add, user_add, engine,
     unit_add 
 )
-from enumerates import CONTRAGENT_TYPES
+from enumerates import CONTRAGENT_TYPES, ITEM_TYPES
 
 
 DEMO = {
@@ -24,19 +24,19 @@ DEMO = {
         ("АнимеДистриб", CONTRAGENT_TYPES[0]),
         ("Розничный покупатель", CONTRAGENT_TYPES[1]),
     ],
-    "units": [  
-        ("Штука", 1.0),
-        ("Коробка", 20.0),  
-        ("Грамм", 1.0),
-        ("Килограмм", 1000.0),
-        ("Пакет 1 кг", 1000.0),
+    "units": [
+    ("Штука", 1.0, None, None, ITEM_TYPES[0]),
+    ("Грамм", 1.0, 0.001, None, ITEM_TYPES[1]),
+    ("Килограмм", 1000.0, 1.0, None, ITEM_TYPES[1]),
+    ("Литр", 1.0, None, 1.0, ITEM_TYPES[2]),
+    ("Коробка", 24.0, None, None, ITEM_TYPES[0]),
     ],
     "items": [
         # (name, category, buy_price, sell_price, base_unit_name)
-        ("Rem Figma Re:Zero", "Figma", 2200, 3500, "Штука"),
-        ("Hatsune Miku Nendoroid", "Nendoroid", 1500, 2800, "Штука"),
-        ("Levi Pop Up Parade", "Pop Up Parade", 1800, 3000, "Штука"),
-        ("Сахар", "Сыпучие", 50, 100, "Грамм"),  # базовая ЕИ — граммы
+        ("Rem Figma Re:Zero", "Figma", 2200, 3500, "Штука", ITEM_TYPES[0]),
+        ("Hatsune Miku Nendoroid", "Nendoroid", 1500, 2800, "Штука", ITEM_TYPES[0]),
+        ("Levi Pop Up Parade", "Pop Up Parade", 1800, 3000, "Штука", ITEM_TYPES[0]),
+        ("Сахар", "Сыпучие", 50, 100, "Грамм", ITEM_TYPES[1]),  # базовая ЕИ — граммы
     ],
     "users": [
         ("admin", "", "admin"),
@@ -65,8 +65,8 @@ def main():
 
     # ------- 1. Добавляем единицы измерения -------
     unit_map = {}
-    for name, ratio in DEMO["units"]:
-        unit_id = unit_add(name, ratio)
+    for name, ratio, _, _, item_type in DEMO["units"]:
+        unit_id = unit_add(name, ratio, applicable_to=item_type)
         unit_map[name] = unit_id
 
     # ------- 2. Склады и контрагенты -------
@@ -77,13 +77,14 @@ def main():
         contragent_add(name, tp)
 
     # ------- 3. Товары + цены + привязка к ЕИ -------
-    for name, cat, buy, sell, base_unit_name in DEMO["items"]:
+    for name, cat, buy, sell, base_unit_name, item_type in DEMO["items"]:
         base_unit_id = unit_map[base_unit_name]
         # item_add теперь принимает base_unit_id
         it_id = item_add(
             name=name,
             category=cat,
             buy_price=buy,
+            item_type=item_type,
             base_unit_id=base_unit_id,
             storage_unit_id=base_unit_id  # можно указать отдельно
         )

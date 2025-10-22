@@ -37,6 +37,7 @@ class StockWidget:
                         row['warehouse'],
                         row['contragent'] or '-',
                         row['item'],
-                        f"{row['qty']:.2f} {row['base_unit']}"),
+                        f"{row['qty']:.2f} {row['unit']}"),
                 tags=(tag,)
             )
+            

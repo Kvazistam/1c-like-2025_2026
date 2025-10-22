@@ -13,6 +13,8 @@ from widgets import (
     SalePricesWidget,
     BonusReportWidget
     )
+from widgets.production_dialog import ProductionDialog
+from widgets.production_list import ProductionListWidget
 
 
 class App:
@@ -56,6 +58,7 @@ class App:
         self._add_tool_btn('Номенклатура', 'items')
         self._add_tool_btn('Склады',      'warehouses')
         self._add_tool_btn('Остатки',     'остатки')
+        self._add_tool_btn('Производство', 'production') 
 
         # ---------- режим-специфичные ----------
         if self.current_sub == 'buy':
@@ -146,3 +149,10 @@ class App:
             SalesReportWidget(self.content)
         elif tag == 'bonus_report':
             BonusReportWidget(self.content)
+        elif tag == 'production':  
+            ProductionListWidget(self.content)
+    def _open_production(self):
+        def on_close():
+            self._open_widget('production') 
+
+        dialog = ProductionDialog(self.master, on_close=on_close)

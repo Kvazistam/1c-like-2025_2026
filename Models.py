@@ -49,8 +49,8 @@ class Item(Base):
     image: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
     
     base_unit_id: Mapped[int] = mapped_column(ForeignKey("units_of_measure.id"))  # Базовая ЕИ
-    storage_unit_id: Mapped[Optional[int]] = mapped_column(ForeignKey("units_of_measure.id"))  # Для остатков
-    report_unit_id: Mapped[Optional[int]] = mapped_column(ForeignKey("units_of_measure.id"))  # Для отчётов
+    storage_unit_id: Mapped[Optional[int]] = mapped_column(ForeignKey("units_of_measure.id"), nullable=True)  # Для остатков
+    report_unit_id: Mapped[Optional[int]] = mapped_column(ForeignKey("units_of_measure.id"), nullable=True)  # Для отчётов
 
     base_unit: Mapped[UnitOfMeasure] = relationship(foreign_keys=[base_unit_id])
 

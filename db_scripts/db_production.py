@@ -1,6 +1,45 @@
+from typing import Any, Dict, List, Optional
 from sqlalchemy import select, delete
-from Models import ProductionDoc, ProductionInput, ProductionOutput, Stock
+from Models import ProductionDoc, ProductionInput, ProductionOutput, Stock, Warehouse
 from .db_session import get_session
+from sqlalchemy.orm import selectinload
+def production_get(doc_id: int) -> Optional[ProductionDoc]:
+    """
+    Загружает документ производства со всеми связанными строками.
+    """
+    with get_session() as s:
+        return s.execute(
+            select(ProductionDoc)
+            .options(
+                selectinload(ProductionDoc.input_lines)
+                .selectinload(ProductionInput.item),
+                selectinload(ProductionDoc.input_lines)
+                .selectinload(ProductionInput.unit),
+                selectinload(ProductionDoc.output_lines)
+                .selectinload(ProductionOutput.item),
+                selectinload(ProductionDoc.output_lines)
+                .selectinload(ProductionOutput.unit),
+                selectinload(ProductionDoc.warehouse)
+            )
+            .where(ProductionDoc.id == doc_id)
+        ).scalar_one_or_none()
+
+
+def production_unpost(doc_id: int) -> None:
+    """
+    Отменяет проведение документа производства.
+    Удаляет движения по складу и возвращает документ в непроведённое состояние.
+    """
+    with get_session() as s:
+        d = s.get(ProductionDoc, doc_id)
+        if not d or not d.posted:
+            return
+
+        # Удаляем движения по складу
+        s.execute(delete(Stock).where(Stock.doc_id == doc_id))
+
+        d.posted = False
+        s.commit()
 
 def production_save_head(date_, warehouse_id, comment=""):
     with get_session() as s:
@@ -62,3 +101,32 @@ def production_post(doc_id):
         
         d.posted = True
         s.commit()
+        
+
+def production_list() -> List[Dict[str, Any]]:
+    """Список документов производства."""
+    with get_session() as s:
+        stmt = (
+            select(
+                ProductionDoc.id,
+                ProductionDoc.date,
+                ProductionDoc.posted,
+                ProductionDoc.comment,
+                Warehouse.name.label("warehouse")
+            )
+            .join(Warehouse, ProductionDoc.warehouse_id == Warehouse.id)
+            .order_by(ProductionDoc.date.desc())
+        )
+        rows = s.execute(stmt).mappings().all()
+        return [dict(r) for r in rows]
+
+
+def production_delete(doc_id: int) -> None:
+    """Удалить документ производства (только непроведённый)."""
+    with get_session() as s:
+        d = s.get(ProductionDoc, doc_id)
+        if d:
+            if d.posted:
+                raise ValueError("Нельзя удалить проведённый документ")
+            s.delete(d)
+            s.commit()

@@ -77,7 +77,11 @@ class ItemsWidget:
             "id": full_data.id,
             "category": full_data.category,
             "buy_price": full_data.buy_price,
-            "image": full_data.image
+            "image": full_data.image,
+            "item_type": full_data.item_type,
+            "base_unit_id": full_data.base_unit_id,
+            "storage_unit_id": full_data.storage_unit_id,
+            "report_unit_id": full_data.report_unit_id,
         }
         d = ItemDialog(self.frame, item_id=item_data["id"], item_data=item_data)
         self.frame.wait_window(d)

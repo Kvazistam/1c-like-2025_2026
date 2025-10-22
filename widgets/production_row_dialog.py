@@ -2,7 +2,8 @@
 import tkinter as tk
 from tkinter import ttk
 
-from db_scripts import item_list, unit_list
+from db_scripts import item_list, unit_list_all
+from db_scripts.db_units import unit_list_for_item
 
 
 class ProductionRowDialog(tk.Toplevel):
@@ -44,7 +45,7 @@ class ProductionRowDialog(tk.Toplevel):
         if not item_name:
             return
         item_id = self.item_map[item_name]
-        units = unit_list(item_id)  # ← функция должна возвращать ЕИ для товара
+        units = unit_list_for_item(item_id)  # ← функция должна возвращать ЕИ для товара
         self.unit_map = {u['name']: u['id'] for u in units}
         self.cb_unit['values'] = list(self.unit_map.keys())
         if units:

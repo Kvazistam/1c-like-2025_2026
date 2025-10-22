@@ -5,7 +5,7 @@ from tkcalendar import DateEntry
 from datetime import date
 
 from db_scripts import (
-    warehouse_list, item_list, unit_list,
+    warehouse_list, item_list, unit_list_all,
     production_save_head, production_save_lines, production_post, production_unpost, production_get
 )
 from widgets.production_row_dialog import ProductionRowDialog
