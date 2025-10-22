@@ -15,6 +15,7 @@ from widgets import (
     )
 from widgets.production_dialog import ProductionDialog
 from widgets.production_list import ProductionListWidget
+from widgets.units import UnitsWidget
 
 
 class App:
@@ -59,6 +60,7 @@ class App:
         self._add_tool_btn('Склады',      'warehouses')
         self._add_tool_btn('Остатки',     'остатки')
         self._add_tool_btn('Производство', 'production') 
+        self._add_tool_btn('Единицы измерения', 'units')
 
         # ---------- режим-специфичные ----------
         if self.current_sub == 'buy':
@@ -151,6 +153,8 @@ class App:
             BonusReportWidget(self.content)
         elif tag == 'production':  
             ProductionListWidget(self.content)
+        elif tag == 'units':
+            UnitsWidget(self.content)
     def _open_production(self):
         def on_close():
             self._open_widget('production') 

@@ -8,6 +8,7 @@ from .sales_report import SalesReportWidget
 from .bonus_report import BonusReportWidget
 from .production_list import ProductionListWidget
 from .production_dialog import ProductionDialog
+from .units import UnitsWidget
 
 __all__ = ['ItemsWidget', 'ContragentsWidget', 'WarehousesWidget',
            'DocsWidget', 'StockWidget', 'SalePricesWidget', 'SalesReportWidget', 'BonusReportWidget']
